@@ -7,6 +7,11 @@ class XDFNoTradeFilter
   {
 private:
    double m_avg_spread_points;
+   static const double XDF_SPREAD_ATR_MULTIPLIER;
+   static const double XDF_SPREAD_MIN_FLOOR_RATIO;
+   static const double XDF_SPREAD_AVG_MULTIPLIER;
+   static const double XDF_COMPRESSION_ATR_NEAR_FACTOR;
+   static const double XDF_COMPRESSION_RANGE_ATR_RATIO;
 public:
    XDFNoTradeFilter():m_avg_spread_points(0.0){}
 
@@ -31,8 +36,8 @@ public:
 
       double adaptive_max_spread=max_spread;
       if(atr_points>0.0)
-         adaptive_max_spread=MathMin(max_spread,MathMax(max_spread*0.7,atr_points*0.45));
-      adaptive_max_spread=MathMax(adaptive_max_spread,m_avg_spread_points*1.5);
+         adaptive_max_spread=MathMin(max_spread,MathMax(max_spread*XDF_SPREAD_MIN_FLOOR_RATIO,atr_points*XDF_SPREAD_ATR_MULTIPLIER));
+      adaptive_max_spread=MathMax(adaptive_max_spread,m_avg_spread_points*XDF_SPREAD_AVG_MULTIPLIER);
 
       if(spread_points>adaptive_max_spread)
         {
@@ -54,7 +59,7 @@ public:
          reason=ReasonVWAPOverextended();
          return(false);
         }
-      if(atr<(min_atr*1.15) && recent_range_price<(atr*0.35))
+      if(atr<(min_atr*XDF_COMPRESSION_ATR_NEAR_FACTOR) && recent_range_price<(atr*XDF_COMPRESSION_RANGE_ATR_RATIO))
         {
          reason=ReasonCompressionDeadSession();
          return(false);
@@ -62,5 +67,11 @@ public:
       return(true);
      }
   };
+
+const double XDFNoTradeFilter::XDF_SPREAD_ATR_MULTIPLIER=0.45;
+const double XDFNoTradeFilter::XDF_SPREAD_MIN_FLOOR_RATIO=0.70;
+const double XDFNoTradeFilter::XDF_SPREAD_AVG_MULTIPLIER=1.50;
+const double XDFNoTradeFilter::XDF_COMPRESSION_ATR_NEAR_FACTOR=1.15;
+const double XDFNoTradeFilter::XDF_COMPRESSION_RANGE_ATR_RATIO=0.35;
 
 #endif

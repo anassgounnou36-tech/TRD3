@@ -31,7 +31,7 @@ public:
       return(gain_pct>=lock_r*risk_pct);
      }
 
-   double CalculateLots(const XDFSymbolSpecs &specs,double risk_pct,double stop_distance_price,bool allow_min_lot_override,bool &blocked,bool use_equity=false)
+   double CalculateLots(const XDFSymbolSpecs &specs,double risk_pct,double stop_distance_price,bool allow_min_lot_override,bool &blocked,bool use_equity=true)
      {
       blocked=false;
       if(stop_distance_price<=0.0 || specs.tick_size<=0.0 || specs.tick_value<=0.0)
