@@ -11,19 +11,32 @@ datetime XDF_DayAnchor(datetime now)
    return(StructToTime(dt));
   }
 
+void XDF_InitSessionState(XDFSessionState &state)
+  {
+   ZeroMemory(state);
+   state.active=false;
+   state.or_complete=false;
+   state.touched_above=false;
+   state.touched_below=false;
+  }
+
 void XDF_BuildSessionState(const XDFSessionConfig &cfg,datetime now,XDFSessionState &state)
   {
+   XDF_InitSessionState(state);
    datetime anchor=XDF_DayAnchor(now);
    state.day_anchor=anchor;
    state.session_start=anchor + cfg.start_hour*3600 + cfg.start_minute*60;
    state.or_end=state.session_start + cfg.or_minutes*60;
    state.trade_end=state.session_start + cfg.trade_minutes*60;
    state.active=(now>=state.session_start && now<=state.trade_end);
+   state.or_complete=(now>=state.or_end);
   }
 
 XDFSessionId XDF_ActiveSession(datetime now,const XDFSessionConfig &london,const XDFSessionConfig &ny,XDFSessionState &out_state)
   {
    XDFSessionState lstate,nstate;
+   XDF_InitSessionState(lstate);
+   XDF_InitSessionState(nstate);
    XDF_BuildSessionState(london,now,lstate);
    XDF_BuildSessionState(ny,now,nstate);
 
@@ -37,7 +50,7 @@ XDFSessionId XDF_ActiveSession(datetime now,const XDFSessionConfig &london,const
       out_state=nstate;
       return(SESSION_NEWYORK);
      }
-   ZeroMemory(out_state);
+   XDF_InitSessionState(out_state);
    return(SESSION_NONE);
   }
 

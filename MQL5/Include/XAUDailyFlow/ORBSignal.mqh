@@ -36,6 +36,10 @@ public:
          double base_stop=or_data.low - atr*0.35;
          s.stop=MathMin(base_stop,s.entry-min_stop_distance);
          s.tp_hint=s.entry + atr*1.1;
+         s.stop_distance=MathAbs(s.entry-s.stop);
+         s.target_distance=MathAbs(s.tp_hint-s.entry);
+         s.trigger_body_ratio=(range>0.0 ? body/range : 0.0);
+         s.vwap_side_ok=(b.close>vwap);
          return(s);
         }
 
@@ -46,6 +50,10 @@ public:
          double base_stop=or_data.high + atr*0.35;
          s.stop=MathMax(base_stop,s.entry+min_stop_distance);
          s.tp_hint=s.entry - atr*1.1;
+         s.stop_distance=MathAbs(s.entry-s.stop);
+         s.target_distance=MathAbs(s.tp_hint-s.entry);
+         s.trigger_body_ratio=(range>0.0 ? body/range : 0.0);
+         s.vwap_side_ok=(b.close<vwap);
          return(s);
         }
 

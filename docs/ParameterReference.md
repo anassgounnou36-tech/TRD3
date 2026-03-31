@@ -7,6 +7,7 @@
 - InpNYStartHour / InpNYStartMinute
 - InpNYORMinutes
 - InpNYTradeMinutes
+- Note: all session times use broker server time
 
 ## Risk
 - InpRiskPct
@@ -21,6 +22,7 @@
 - InpMinSetupScore
 - InpMixedModeScoreThreshold
 - InpConflictOverrideScoreThreshold
+- Score breakdown is logged per setup (range/context/trigger/execution/vwap/noise/total)
 
 ## Execution / Filters
 - InpMaxSpreadPoints
@@ -29,3 +31,4 @@
 - InpMaxSlippagePoints
 - InpMaxHoldMinutes
 - InpEnableNewsBlock and block time inputs
+- Execution diagnostics include pre-send and post-send trade retcode details

@@ -5,7 +5,7 @@
 1. Build opening range from first N minutes after session open.
 2. Require closed-bar breakout beyond OR boundary.
 3. Require non-doji impulse body quality.
-4. Confirm by VWAP side and EMA alignment.
+4. Confirm by VWAP side and M5 trigger alignment.
 5. Reject overextension versus ATR/VWAP distance constraints.
 
 ## Setup Family B: Failed OR / VWAP Mean Reversion
@@ -21,3 +21,9 @@
 - MEAN_REVERSION: favors failed-OR reclaim setups
 - MIXED: both families allowed with stricter score threshold
 - NO_TRADE: only for clearly poor conditions
+
+## Timeframe separation (v1.1)
+
+- **M1:** intraday accumulation (OR + session VWAP)
+- **M5:** trigger/entry logic and management cadence
+- **M15:** context only (EMA slope + alignment), used by regime engine to bias continuation vs reversion

@@ -28,12 +28,14 @@ public:
       return((TimeCurrent()-state.opened_at) >= max_hold_minutes*60);
      }
 
-   bool ShouldMoveBE(const XDFPositionState &state,double bid,double ask,double trigger_rr)
+   bool ShouldMoveBE(const XDFPositionState &state,double bid,double ask,double trigger_rr,double point)
      {
       if(!state.has_position || state.stop<=0.0)
          return(false);
       double risk=MathAbs(state.entry-state.stop);
       if(risk<=0.0)
+         return(false);
+      if(point>0.0 && MathAbs(state.entry-state.stop)<=point*2.0)
          return(false);
       double move=(state.direction>0)?(bid-state.entry):(state.entry-ask);
       return(move>=risk*trigger_rr);

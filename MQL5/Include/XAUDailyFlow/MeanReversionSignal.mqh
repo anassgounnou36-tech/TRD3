@@ -37,6 +37,10 @@ public:
             s.tp_hint=target;
             if(s.tp_hint<=s.entry || s.tp_hint==0.0)
                s.tp_hint=s.entry+atr*0.9;
+            s.stop_distance=MathAbs(s.entry-s.stop);
+            s.target_distance=MathAbs(s.tp_hint-s.entry);
+            s.trigger_body_ratio=((latest.high-latest.low)>0.0 ? body/(latest.high-latest.low) : 0.0);
+            s.vwap_side_ok=(vwap>=s.entry);
             return(s);
            }
         }
@@ -55,6 +59,10 @@ public:
             s.tp_hint=target;
             if(s.tp_hint>=s.entry || s.tp_hint==0.0)
                s.tp_hint=s.entry-atr*0.9;
+            s.stop_distance=MathAbs(s.entry-s.stop);
+            s.target_distance=MathAbs(s.tp_hint-s.entry);
+            s.trigger_body_ratio=((latest.high-latest.low)>0.0 ? body/(latest.high-latest.low) : 0.0);
+            s.vwap_side_ok=(vwap<=s.entry);
             return(s);
            }
         }

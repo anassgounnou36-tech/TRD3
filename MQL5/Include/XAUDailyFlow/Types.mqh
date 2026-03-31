@@ -63,6 +63,10 @@ struct XDFSignal
    double            entry;
    double            stop;
    double            tp_hint;
+   double            trigger_body_ratio;
+   double            stop_distance;
+   double            target_distance;
+   bool              vwap_side_ok;
   };
 
 struct XDFScoreBreakdown
