@@ -31,7 +31,7 @@ public:
       return(gain_pct>=lock_r*risk_pct);
      }
 
-   double CalculateLots(const XDFSymbolSpecs &specs,double risk_pct,double stop_distance_price,bool allow_min_lot_override,bool &blocked)
+   double CalculateLots(const XDFSymbolSpecs &specs,double risk_pct,double stop_distance_price,bool allow_min_lot_override,bool &blocked,bool use_equity=false)
      {
       blocked=false;
       if(stop_distance_price<=0.0 || specs.tick_size<=0.0 || specs.tick_value<=0.0)
@@ -40,8 +40,13 @@ public:
          return(0.0);
         }
 
-      double balance=AccountInfoDouble(ACCOUNT_BALANCE);
-      double risk_money=balance*(risk_pct/100.0);
+       double base_capital=use_equity ? AccountInfoDouble(ACCOUNT_EQUITY) : AccountInfoDouble(ACCOUNT_BALANCE);
+       if(base_capital<=0.0)
+         {
+          blocked=true;
+          return(0.0);
+         }
+       double risk_money=base_capital*(risk_pct/100.0);
       double ticks=stop_distance_price/specs.tick_size;
       if(ticks<=0.0)
         {

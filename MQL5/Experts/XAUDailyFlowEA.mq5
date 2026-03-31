@@ -42,6 +42,7 @@ input int InpMaxTradesPerSession = 3;
 input bool InpEnableDailyProfitLock = true;
 input double InpDailyProfitLockR = 3.0;
 input bool InpAllowMinLotOverride = false;
+input bool InpSizeFromEquity = true;
 
 input int InpMinSetupScore = 58;
 input int InpMixedModeScoreThreshold = 63;
@@ -333,6 +334,9 @@ int OnInit()
    ZeroMemory(g_counters);
 
    g_diag.Log("INIT",StringFormat("symbol=%s digits=%d minLot=%.2f",g_symbol,g_specs.digits,g_specs.min_lot));
+   g_diag.Log("SESSIONS",StringFormat("brokerTime windows London %02d:%02d OR=%d Trade=%d | NewYork %02d:%02d OR=%d Trade=%d",
+                                       InpLondonStartHour,InpLondonStartMinute,InpLondonORMinutes,InpLondonTradeMinutes,
+                                       InpNYStartHour,InpNYStartMinute,InpNYORMinutes,InpNYTradeMinutes));
    return(INIT_SUCCEEDED);
   }
 
@@ -402,6 +406,7 @@ void OnTick()
       g_vwap.Reset(g_symbol,g_session_state.session_start);
       g_last_session_start=g_session_state.session_start;
       g_last_m1_vwap_bar=0;
+      g_filter.ResetSession();
      }
 
    if(XDF_NewBar(g_symbol,PERIOD_M1,g_last_m1_vwap_bar) || g_vwap.Value()==0.0)
@@ -430,10 +435,16 @@ void OnTick()
    double m15_slope=g_indicators.M15Slope();
    bool m15_long=g_indicators.M15EMAAligned(true);
    bool m15_short=g_indicators.M15EMAAligned(false);
-   XDFRegime regime=g_regime.Detect(g_or,atr,g_vwap.Value(),mid,g_session_state.touched_above && g_session_state.touched_below,m15_slope,m15_long,m15_short);
+    string regime_reason;
+    XDFRegime regime=g_regime.Detect(g_or,atr,g_vwap.Value(),mid,g_session_state.touched_above && g_session_state.touched_below,m15_slope,m15_long,m15_short,regime_reason);
+    g_diag.Log("REGIME",StringFormat("regime=%s reason=%s bothSides=%s m15Slope=%.4f m15Long=%s m15Short=%s",
+                                     XDF_RegimeToString((int)regime),regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",
+                                     m15_slope,(m15_long?"Y":"N"),(m15_short?"Y":"N")));
 
    string reject_reason;
-   if(!g_filter.Allow(spread_pts,InpMaxSpreadPoints,atr,InpMinATR,vwap_dist_pts,InpMaxVWAPDistancePoints,reject_reason))
+    double atr_points=(g_specs.point>0.0 ? atr/g_specs.point : 0.0);
+    double recent_range_price=(m5[1].high-m5[1].low);
+    if(!g_filter.Allow(spread_pts,InpMaxSpreadPoints,atr,InpMinATR,atr_points,vwap_dist_pts,InpMaxVWAPDistancePoints,recent_range_price,reject_reason))
      {
       g_counters.setups_rejected++;
       if(reject_reason==g_filter.ReasonSpreadTooHigh()) g_counters.blocked_spread++;
@@ -510,7 +521,7 @@ void OnTick()
 
    bool lot_blocked=false;
    double stop_dist=MathAbs(chosen.entry-chosen.stop);
-   double lots=g_risk.CalculateLots(g_specs,InpRiskPct,stop_dist,InpAllowMinLotOverride,lot_blocked);
+    double lots=g_risk.CalculateLots(g_specs,InpRiskPct,stop_dist,InpAllowMinLotOverride,lot_blocked,InpSizeFromEquity);
    if(lot_blocked || lots<=0.0)
      {
       g_counters.blocked_risk++;
@@ -520,7 +531,7 @@ void OnTick()
      }
 
    string exec_diag;
-   bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,exec_diag);
+    bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,(int)regime,score.total,exec_diag);
    g_diag.Log("ORDER_ATTEMPT",exec_diag);
    if(ok)
      {

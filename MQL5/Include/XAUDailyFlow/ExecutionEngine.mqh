@@ -27,15 +27,15 @@ public:
       return(EnumToString((ENUM_TRADE_RETCODE)retcode));
      }
 
-   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,string &diag)
+   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,int regime,int score,string &diag)
      {
       diag="";
       if(!signal.valid || lots<=0.0)
          return(false);
       m_last_spread_points=spread_points;
 
-      diag=StringFormat("PRE_SEND symbol=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.2f deviation=%d",
-                        symbol,(signal.direction>0?"BUY":"SELL"),lots,signal.entry,signal.stop,signal.tp_hint,spread_points,signal.stop_distance,m_deviation);
+      diag=StringFormat("PRE_SEND symbol=%s family=%d dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.2f targetDist=%.2f regime=%d score=%d deviation=%d",
+                        symbol,(int)signal.family,(signal.direction>0?"BUY":"SELL"),lots,signal.entry,signal.stop,signal.tp_hint,spread_points,signal.stop_distance,signal.target_distance,regime,score,m_deviation);
 
       bool ok=false;
       if(signal.direction>0)
@@ -55,8 +55,8 @@ public:
      {
       bool ok=m_trade.PositionModify(symbol,sl,tp);
       int rc=(int)m_trade.ResultRetcode();
-      diag=StringFormat("MODIFY symbol=%s oldSL=%.2f newSL=%.2f tp=%.2f ok=%s retcode=%d(%s)",
-                        symbol,old_sl,sl,tp,(ok?"true":"false"),rc,RetcodeDescription(rc));
+      diag=StringFormat("MODIFY symbol=%s oldSL=%.2f newSL=%.2f deltaSL=%.2f tp=%.2f ok=%s retcode=%d(%s)",
+                        symbol,old_sl,sl,(sl-old_sl),tp,(ok?"true":"false"),rc,RetcodeDescription(rc));
       return(ok);
      }
   };

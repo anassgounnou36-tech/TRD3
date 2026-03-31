@@ -8,6 +8,7 @@
 - InpNYORMinutes
 - InpNYTradeMinutes
 - Note: all session times use broker server time
+- EA init logs the configured London/NY windows; tune these to your broker server offset
 
 ## Risk
 - InpRiskPct
@@ -17,6 +18,7 @@
 - InpEnableDailyProfitLock
 - InpDailyProfitLockR
 - InpAllowMinLotOverride
+- InpSizeFromEquity (default true; if false sizing uses account balance)
 
 ## Scoring
 - InpMinSetupScore
@@ -32,3 +34,4 @@
 - InpMaxHoldMinutes
 - InpEnableNewsBlock and block time inputs
 - Execution diagnostics include pre-send and post-send trade retcode details
+- Filters include adaptive checks (ATR-relative spread and VWAP distance, compression dead-session block)

@@ -21,20 +21,16 @@ public:
       m_vwap=0;
      }
 
-   void Update()
+   void UpdateTo(datetime upto_time)
      {
-      if(m_symbol=="" || m_session_start==0)
-         return;
+       if(m_symbol=="" || m_session_start==0 || upto_time<m_session_start)
+          return;
 
-      int start_shift=iBarShift(m_symbol,PERIOD_M1,m_session_start,false);
-      if(start_shift<0)
-         return;
-
-      MqlRates rates[];
-      ArraySetAsSeries(rates,true);
-      int bars=CopyRates(m_symbol,PERIOD_M1,0,start_shift+1,rates);
-      if(bars<=0)
-         return;
+       MqlRates rates[];
+       ArraySetAsSeries(rates,true);
+       int bars=CopyRates(m_symbol,PERIOD_M1,m_session_start,upto_time,rates);
+       if(bars<=0)
+          return;
 
       m_pv_sum=0;
       m_v_sum=0;
@@ -45,8 +41,13 @@ public:
          m_pv_sum += typ*vol;
          m_v_sum += vol;
         }
-      if(m_v_sum>0)
-         m_vwap=m_pv_sum/m_v_sum;
+       if(m_v_sum>0)
+          m_vwap=m_pv_sum/m_v_sum;
+     }
+
+   void Update()
+     {
+      UpdateTo(TimeCurrent());
      }
 
    double Value() const { return m_vwap; }
