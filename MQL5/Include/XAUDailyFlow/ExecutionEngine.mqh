@@ -12,6 +12,21 @@ private:
    int m_deviation;
    double m_last_spread_points;
 public:
+   string FamilyLabel(int family) const
+     {
+      if(family==SETUP_ORB_CONTINUATION) return("ORB");
+      if(family==SETUP_MEAN_REVERSION) return("MR");
+      return("NONE");
+     }
+
+   string RegimeLabel(int regime) const
+     {
+      if(regime==REGIME_TREND_CONTINUATION) return("TREND_CONTINUATION");
+      if(regime==REGIME_MEAN_REVERSION) return("MEAN_REVERSION");
+      if(regime==REGIME_MIXED) return("MIXED");
+      return("NO_TRADE");
+     }
+
    void Configure(const string symbol,long magic,int slippage_points)
      {
       m_symbol=symbol;
@@ -34,8 +49,8 @@ public:
          return(false);
       m_last_spread_points=spread_points;
 
-      diag=StringFormat("PRE_SEND symbol=%s family=%d dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.2f targetDist=%.2f regime=%d score=%d deviation=%d",
-                        symbol,(int)signal.family,(signal.direction>0?"BUY":"SELL"),lots,signal.entry,signal.stop,signal.tp_hint,spread_points,signal.stop_distance,signal.target_distance,regime,score,m_deviation);
+      diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.2f targetDist=%.2f regime=%s score=%d deviation=%d",
+                        symbol,FamilyLabel((int)signal.family),(signal.direction>0?"BUY":"SELL"),lots,signal.entry,signal.stop,signal.tp_hint,spread_points,signal.stop_distance,signal.target_distance,RegimeLabel(regime),score,m_deviation);
 
       bool ok=false;
       if(signal.direction>0)

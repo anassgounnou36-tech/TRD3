@@ -68,19 +68,12 @@ void OnStart()
    cfg.id=SESSION_LONDON;
    cfg.name="AuditSession";
 
-   XDFIndicatorEngine ie;
-   if(!ie.Init(sym))
-     {
-      Print("Bar audit indicator init failed");
-      return;
-     }
    int atr_handle=iATR(sym,PERIOD_M5,14);
    int m15_fast_handle=iMA(sym,PERIOD_M15,20,0,MODE_EMA,PRICE_CLOSE);
    int m15_slow_handle=iMA(sym,PERIOD_M15,50,0,MODE_EMA,PRICE_CLOSE);
    if(atr_handle==INVALID_HANDLE || m15_fast_handle==INVALID_HANDLE || m15_slow_handle==INVALID_HANDLE)
      {
       Print("Bar audit failed to init historical indicator handles");
-      ie.Release();
       return;
      }
 
@@ -147,8 +140,8 @@ void OnStart()
             double body=MathAbs(b.close-b.open);
             double range=b.high-b.low;
             bool strong=(range>0.0 && (body/range)>=0.45);
-            bool ema_long_ok=(m15l || ie.EMAAligned(true));
-            bool ema_short_ok=(m15sh || ie.EMAAligned(false));
+            bool ema_long_ok=m15l;
+            bool ema_short_ok=m15sh;
             if(strong && b.close>or_data.high && b.close>vwap.Value() && ema_long_ok && (b.close-or_data.high)<(atr*1.5))
               {
                orb.family=SETUP_ORB_CONTINUATION;
@@ -211,7 +204,6 @@ void OnStart()
                          sb.range_quality,sb.context_quality,sb.trigger_quality,sb.execution_quality,sb.vwap_quality,sb.noise_penalty,sb.total,
                          (allow?"NONE":blocker)));
      }
-   ie.Release();
    IndicatorRelease(atr_handle);
    IndicatorRelease(m15_fast_handle);
    IndicatorRelease(m15_slow_handle);
