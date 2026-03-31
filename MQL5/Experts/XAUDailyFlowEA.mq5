@@ -82,7 +82,9 @@ XDFDiagnostics g_diag;
 XDFCounters g_counters;
 
 datetime g_last_m5_bar=0;
+datetime g_last_m1_vwap_bar=0;
 datetime g_last_day_anchor=0;
+datetime g_last_session_start=0;
 XDFSessionId g_current_session=SESSION_NONE;
 int g_trades_today=0;
 int g_trades_london=0;
@@ -91,6 +93,14 @@ string g_last_blocker="";
 bool g_daily_blocked=false;
 int g_last_score=0;
 int g_last_family=SETUP_NONE;
+
+double XDF_DailyPLPct()
+  {
+   double bal=AccountInfoDouble(ACCOUNT_BALANCE);
+   if(bal<=0.0)
+      return(0.0);
+   return((AccountInfoDouble(ACCOUNT_EQUITY)-bal)/bal*100.0);
+  }
 
 double XDF_CurrentSpreadPoints()
   {
@@ -192,7 +202,7 @@ void XDF_ManageOpenPosition(double atr)
       double be=ps.entry;
       if(ps.direction>0 && ps.stop<be)
          g_exec.ModifySLTP(g_symbol,NormalizeDouble(be,g_specs.digits),ps.take_profit);
-      if(ps.direction<0 && (ps.stop>be || ps.stop==0.0))
+      if(ps.direction<0 && ps.stop>be)
          g_exec.ModifySLTP(g_symbol,NormalizeDouble(be,g_specs.digits),ps.take_profit);
      }
 
@@ -222,7 +232,7 @@ void XDF_ManageOpenPosition(double atr)
    else
      {
       double candidate=ask+trail_dist;
-      if(ps.stop==0.0 || candidate<ps.stop-atr*0.2)
+      if(candidate<ps.stop-atr*0.2)
          new_sl=candidate;
      }
 
@@ -266,7 +276,7 @@ int OnInit()
    g_ny_cfg.name="NewYork";
 
    g_or_engine.Init(g_symbol);
-   g_exec.Configure(XDF_MAGIC,InpMaxSlippagePoints);
+   g_exec.Configure(g_symbol,XDF_MAGIC,InpMaxSlippagePoints);
    g_diag.Init(InpEnableFileLogging);
    g_risk.StartDay(AccountInfoDouble(ACCOUNT_EQUITY));
    ZeroMemory(g_counters);
@@ -312,21 +322,21 @@ void OnTick()
    if(g_current_session==SESSION_NONE)
      {
       g_last_blocker="Out of session";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
    if(XDF_InNewsBlock(now))
      {
       g_last_blocker="News block window";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
    if(g_session_state.session_start!=0 && now<g_session_state.or_end)
      {
       g_last_blocker="Building opening range";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,0.0,REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -336,12 +346,19 @@ void OnTick()
       return;
      }
 
-   g_vwap.Reset(g_symbol,g_session_state.session_start);
-   g_vwap.Update();
+   if(g_session_state.session_start!=g_last_session_start)
+     {
+      g_vwap.Reset(g_symbol,g_session_state.session_start);
+      g_last_session_start=g_session_state.session_start;
+      g_last_m1_vwap_bar=0;
+     }
+
+   if(XDF_NewBar(g_symbol,PERIOD_M1,g_last_m1_vwap_bar) || g_vwap.Value()==0.0)
+      g_vwap.Update();
 
    if(!XDF_NewBar(g_symbol,PERIOD_M5,g_last_m5_bar))
      {
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -367,11 +384,12 @@ void OnTick()
       g_counters.setups_rejected++;
       if(reject_reason=="Spread too high") g_counters.blocked_spread++;
       g_last_blocker=reject_reason;
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
-   XDFSignal orb=g_orb_signal.Evaluate(g_symbol,g_or,g_vwap.Value(),atr,g_indicators.EMAAligned(true),g_indicators.EMAAligned(false));
+   double min_stop_distance=MathMax((double)g_specs.stops_level_points*g_specs.point,g_specs.point*5.0);
+   XDFSignal orb=g_orb_signal.Evaluate(g_symbol,g_or,g_vwap.Value(),atr,g_indicators.EMAAligned(true),g_indicators.EMAAligned(false),min_stop_distance);
    XDFSignal mr=g_mr_signal.Evaluate(g_symbol,g_or,g_vwap.Value(),atr);
 
    XDFSignal chosen;
@@ -387,7 +405,7 @@ void OnTick()
    if(!chosen.valid)
      {
       g_last_blocker="No qualified setup";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -400,28 +418,28 @@ void OnTick()
       g_counters.setups_rejected++;
       g_counters.blocked_score++;
       g_last_blocker="Score below threshold";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
    if(g_daily_blocked)
      {
       g_last_blocker="Daily blocker active";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
    if(has_pos)
      {
       g_last_blocker="Existing position";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
    if(g_trades_today>=InpMaxTradesPerDay || XDF_TradesInActiveSession()>=InpMaxTradesPerSession)
      {
       g_last_blocker="Trade count limit";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -429,7 +447,7 @@ void OnTick()
    if(!XDF_BasicExecutionChecks(chosen,exec_reason))
      {
       g_last_blocker=exec_reason;
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -440,7 +458,7 @@ void OnTick()
      {
       g_counters.blocked_risk++;
       g_last_blocker="Lot blocked by risk model";
-      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+      XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
       return;
      }
 
@@ -460,5 +478,5 @@ void OnTick()
       g_diag.Log("ORDER_FAIL","Order request failed");
      }
 
-   XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,((AccountInfoDouble(ACCOUNT_EQUITY)-AccountInfoDouble(ACCOUNT_BALANCE))/AccountInfoDouble(ACCOUNT_BALANCE))*100.0,g_daily_blocked);
+   XDF_UpdatePanel(g_symbol,g_current_session,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked);
   }

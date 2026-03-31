@@ -6,7 +6,7 @@
 class XDFORBSignal
   {
 public:
-   XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok)
+   XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
      {
       XDFSignal s;
       ZeroMemory(s);
@@ -33,7 +33,8 @@ public:
         {
          s.valid=true; s.direction=1; s.reason="ORB long continuation";
          s.entry=SymbolInfoDouble(symbol,SYMBOL_ASK);
-         s.stop=or_data.low - atr*0.35;
+         double base_stop=or_data.low - atr*0.35;
+         s.stop=MathMin(base_stop,s.entry-min_stop_distance);
          s.tp_hint=s.entry + atr*1.1;
          return(s);
         }
@@ -42,7 +43,8 @@ public:
         {
          s.valid=true; s.direction=-1; s.reason="ORB short continuation";
          s.entry=SymbolInfoDouble(symbol,SYMBOL_BID);
-         s.stop=or_data.high + atr*0.35;
+         double base_stop=or_data.high + atr*0.35;
+         s.stop=MathMax(base_stop,s.entry+min_stop_distance);
          s.tp_hint=s.entry - atr*1.1;
          return(s);
         }

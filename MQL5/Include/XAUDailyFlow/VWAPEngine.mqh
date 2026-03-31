@@ -26,9 +26,13 @@ public:
       if(m_symbol=="" || m_session_start==0)
          return;
 
+      int start_shift=iBarShift(m_symbol,PERIOD_M1,m_session_start,false);
+      if(start_shift<0)
+         return;
+
       MqlRates rates[];
       ArraySetAsSeries(rates,true);
-      int bars=CopyRates(m_symbol,PERIOD_M1,m_session_start,TimeCurrent(),rates);
+      int bars=CopyRates(m_symbol,PERIOD_M1,0,start_shift+1,rates);
       if(bars<=0)
          return;
 

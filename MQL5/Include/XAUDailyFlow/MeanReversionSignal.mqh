@@ -31,8 +31,11 @@ public:
             s.valid=true; s.direction=1; s.reason="Failed OR downside reclaim";
             s.entry=SymbolInfoDouble(symbol,SYMBOL_ASK);
             s.stop=prev.low-atr*0.20;
-            s.tp_hint=MathMin(vwap,or_data.midpoint);
-            if(s.tp_hint<=s.entry)
+            double target=0.0;
+            if(vwap>s.entry) target=vwap;
+            if(or_data.midpoint>s.entry && (target==0.0 || or_data.midpoint<target)) target=or_data.midpoint;
+            s.tp_hint=target;
+            if(s.tp_hint<=s.entry || s.tp_hint==0.0)
                s.tp_hint=s.entry+atr*0.9;
             return(s);
            }
@@ -46,8 +49,11 @@ public:
             s.valid=true; s.direction=-1; s.reason="Failed OR upside reclaim";
             s.entry=SymbolInfoDouble(symbol,SYMBOL_BID);
             s.stop=prev.high+atr*0.20;
-            s.tp_hint=MathMax(vwap,or_data.midpoint);
-            if(s.tp_hint>=s.entry)
+            double target=0.0;
+            if(vwap<s.entry) target=vwap;
+            if(or_data.midpoint<s.entry && (target==0.0 || or_data.midpoint>target)) target=or_data.midpoint;
+            s.tp_hint=target;
+            if(s.tp_hint>=s.entry || s.tp_hint==0.0)
                s.tp_hint=s.entry-atr*0.9;
             return(s);
            }

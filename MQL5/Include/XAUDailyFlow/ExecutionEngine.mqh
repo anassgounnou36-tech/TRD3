@@ -8,12 +8,14 @@ class XDFExecutionEngine
   {
 private:
    CTrade m_trade;
+   string m_symbol;
 public:
-   void Configure(long magic,int slippage_points)
+   void Configure(const string symbol,long magic,int slippage_points)
      {
+      m_symbol=symbol;
       m_trade.SetExpertMagicNumber(magic);
       m_trade.SetDeviationInPoints(slippage_points);
-      m_trade.SetTypeFillingBySymbol(_Symbol);
+      m_trade.SetTypeFillingBySymbol(m_symbol);
      }
 
    bool Place(const string symbol,const XDFSignal &signal,double lots)
