@@ -6,7 +6,7 @@
 class XDFMeanReversionSignal
   {
 public:
-   XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr)
+   XDFSignal EvaluateFromBars(const MqlRates &latest,const MqlRates &prev,double entry_long,double entry_short,const XDFOpeningRange &or_data,double vwap,double atr)
      {
       XDFSignal s;
       ZeroMemory(s);
@@ -14,13 +14,6 @@ public:
       if(!or_data.valid || atr<=0.0)
          return(s);
 
-      MqlRates rates[];
-      ArraySetAsSeries(rates,true);
-      if(CopyRates(symbol,PERIOD_M5,0,5,rates)<5)
-         return(s);
-
-      MqlRates latest=rates[1];
-      MqlRates prev=rates[2];
       double min_sweep=atr*0.20;
 
       if(prev.low<or_data.low-min_sweep && latest.close>or_data.low && latest.close<or_data.high)
@@ -29,7 +22,7 @@ public:
          if(body>=(latest.high-latest.low)*0.35)
            {
             s.valid=true; s.direction=1; s.reason="Failed OR downside reclaim";
-            s.entry=SymbolInfoDouble(symbol,SYMBOL_ASK);
+            s.entry=entry_long;
             s.stop=prev.low-atr*0.20;
             double target=0.0;
             if(vwap>s.entry) target=vwap;
@@ -51,7 +44,7 @@ public:
          if(body>=(latest.high-latest.low)*0.35)
            {
             s.valid=true; s.direction=-1; s.reason="Failed OR upside reclaim";
-            s.entry=SymbolInfoDouble(symbol,SYMBOL_BID);
+            s.entry=entry_short;
             s.stop=prev.high+atr*0.20;
             double target=0.0;
             if(vwap<s.entry) target=vwap;
@@ -68,6 +61,21 @@ public:
         }
 
       return(s);
+     }
+
+   XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr)
+     {
+      MqlRates rates[];
+      ArraySetAsSeries(rates,true);
+      if(CopyRates(symbol,PERIOD_M5,0,5,rates)<5)
+        {
+         XDFSignal empty;
+         ZeroMemory(empty);
+         empty.family=SETUP_MEAN_REVERSION;
+         return(empty);
+        }
+
+      return(EvaluateFromBars(rates[1],rates[2],SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),or_data,vwap,atr));
      }
   };
 

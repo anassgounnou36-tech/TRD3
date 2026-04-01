@@ -31,6 +31,16 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Execution diagnostics now include family, regime, score, target distance, and SL delta on modify.
 - Regime logs now include explicit reason strings to reconstruct setup decisions from logs.
 
+## v1.3 quality hardening
+
+- BarAudit now reuses the same shared strategy-decision path as live EA for regime, signal family evaluation (ORB/MR), setup selection, scoring, and blocker evaluation.
+- Execution engine adds preflight validation categories (`invalid symbol`, `invalid stop distance`, `invalid volume`, `spread violation`, `market not tradable`, `order send failed`, `modify failed`) with explicit diagnostics.
+- Execution flow now logs `OrderCheck` details and no longer silently swallows check failures.
+- Filtering is more context-aware: spread and VWAP distance are evaluated relative to ATR and session behavior; OR-width and dead-session checks include adaptive behavior-aware bounds.
+- Position lifecycle is phase-driven (`INIT`, `OPEN`, `TP1_REACHED`, `BE_ACTIVE`, `RUNNER_TRAIL`, `TIME_EXIT`, `COMPLETE`) with calmer one-time BE and bar-gated meaningful trailing updates.
+- Panel transparency improved with OR-built status, setup candidate, score, blocker reason, and position-state visibility.
+- Init logs now explicitly print resolved symbol, server time, and configured London/New York windows for broker-time validation.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

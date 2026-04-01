@@ -16,6 +16,17 @@ enum XDFSetupFamily
    SETUP_MEAN_REVERSION   = 2
   };
 
+enum XDFManagementPhase
+  {
+   PHASE_INIT         = 0,
+   PHASE_OPEN         = 1,
+   PHASE_TP1_REACHED  = 2,
+   PHASE_BE_ACTIVE    = 3,
+   PHASE_RUNNER_TRAIL = 4,
+   PHASE_TIME_EXIT    = 5,
+   PHASE_COMPLETE     = 6
+  };
+
 enum XDFSessionId
   {
    SESSION_NONE   = -1,

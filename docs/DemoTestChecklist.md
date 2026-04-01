@@ -3,6 +3,7 @@
 - [ ] Attach XAUDailyFlowEA to XM GOLD alias symbol
 - [ ] Verify symbol auto-resolution selects GOLD/XAU alias
 - [ ] Validate panel shows OR, VWAP, regime, setup score, blocker reason
+- [ ] Validate panel shows active session, OR-built status, setup candidate family, position state, and daily kill-switch status
 - [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
 - [ ] Confirm no trading outside London/NY windows
 - [ ] Confirm init logs print configured London/NY windows (broker-server dependent)
@@ -16,8 +17,12 @@
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
 - [ ] Confirm order post-send logs include retcode + description + order/deal tickets
 - [ ] Confirm SL modify logs include old/new SL, delta, retcode details
+- [ ] Confirm modify logs clearly state when modify is skipped and why
+- [ ] Confirm execution preflight failures are categorized (invalid symbol/volume/stop/spread/tradable/send/modify)
 - [ ] Confirm InpSizeFromEquity=true sizes from equity
 - [ ] Confirm InpSizeFromEquity=false sizes from balance
 - [ ] Run XAUDailyFlow_BarAudit with bar-count mode and inspect strategy-aware output
 - [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
+- [ ] Confirm BarAudit and EA share same strategy decision path (regime/signal/scoring/blockers)
+- [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
 - [ ] Confirm no `test.txt` artifact remains in repository

@@ -11,6 +11,7 @@
 #include <XAUDailyFlow/MeanReversionSignal.mqh>
 #include <XAUDailyFlow/SetupScorer.mqh>
 #include <XAUDailyFlow/NoTradeFilter.mqh>
+#include <XAUDailyFlow/StrategyDecision.mqh>
 #include <XAUDailyFlow/Journal.mqh>
 
 input string InpSymbol = "";
@@ -80,6 +81,9 @@ void OnStart()
    double spread_pts=0.0;
    double point=SymbolInfoDouble(sym,SYMBOL_POINT);
    XDFNoTradeFilter nf;
+   XDFStrategyDecisionEngine decision;
+   XDFORBSignal orb_signal;
+   XDFMeanReversionSignal mr_signal;
    for(int i=copied-1;i>=0;i--)
      {
       datetime ts=rates[i].time;
@@ -119,11 +123,10 @@ void OnStart()
       double vwap_dist=(point>0.0 ? MathAbs(mid-vwap.Value())/point : 0.0);
       double atr_points=(point>0.0 ? atr/point : 0.0);
 
-      XDFRegimeEngine re;
       string regime_reason;
       XDFRegime regime=REGIME_NO_TRADE;
       if(or_complete && have_or)
-         regime=re.Detect(or_data,atr,vwap.Value(),mid,false,m15s,m15l,m15sh,regime_reason);
+         regime=decision.EvaluateRegime(or_data,atr,vwap.Value(),mid,false,m15s,m15l,m15sh,regime_reason);
       else
          regime_reason="or_building_or_unavailable";
       XDFSignal orb;
@@ -131,64 +134,24 @@ void OnStart()
       ZeroMemory(orb);
       ZeroMemory(mr);
       if(or_complete && have_or)
-        {
-         MqlRates sig_m5[];
-         ArraySetAsSeries(sig_m5,true);
-         if(CopyRates(sym,PERIOD_M5,m5_shift,5,sig_m5)>=5)
-           {
-            MqlRates b=sig_m5[1];
-            double body=MathAbs(b.close-b.open);
-            double range=b.high-b.low;
-            bool strong=(range>0.0 && (body/range)>=0.45);
-            bool ema_long_ok=m15l;
-            bool ema_short_ok=m15sh;
-            if(strong && b.close>or_data.high && b.close>vwap.Value() && ema_long_ok && (b.close-or_data.high)<(atr*1.5))
-              {
-               orb.family=SETUP_ORB_CONTINUATION;
-               orb.valid=true; orb.direction=1; orb.reason="ORB long continuation";
-               orb.entry=b.close; orb.stop=MathMin(or_data.low-atr*0.35,orb.entry-point*5.0);
-               orb.tp_hint=orb.entry+atr*1.1; orb.stop_distance=MathAbs(orb.entry-orb.stop); orb.target_distance=MathAbs(orb.tp_hint-orb.entry);
-               orb.trigger_body_ratio=(range>0.0 ? body/range : 0.0); orb.vwap_side_ok=true;
-              }
-            if(strong && b.close<or_data.low && b.close<vwap.Value() && ema_short_ok && (or_data.low-b.close)<(atr*1.5))
-              {
-               orb.family=SETUP_ORB_CONTINUATION;
-               orb.valid=true; orb.direction=-1; orb.reason="ORB short continuation";
-               orb.entry=b.close; orb.stop=MathMax(or_data.high+atr*0.35,orb.entry+point*5.0);
-               orb.tp_hint=orb.entry-atr*1.1; orb.stop_distance=MathAbs(orb.entry-orb.stop); orb.target_distance=MathAbs(orb.tp_hint-orb.entry);
-               orb.trigger_body_ratio=(range>0.0 ? body/range : 0.0); orb.vwap_side_ok=true;
-              }
-
-            MqlRates latest=sig_m5[1];
-            MqlRates prev=sig_m5[2];
-            double min_sweep=atr*0.20;
-            double mr_body=MathAbs(latest.close-latest.open);
-            if(prev.low<or_data.low-min_sweep && latest.close>or_data.low && latest.close<or_data.high && mr_body>=(latest.high-latest.low)*0.35)
-              {
-               mr.family=SETUP_MEAN_REVERSION;
-               mr.valid=true; mr.direction=1; mr.reason="Failed OR downside reclaim";
-               mr.entry=latest.close; mr.stop=prev.low-atr*0.20; mr.tp_hint=(vwap.Value()>mr.entry ? vwap.Value() : or_data.midpoint);
-               if(mr.tp_hint<=mr.entry || mr.tp_hint==0.0) mr.tp_hint=mr.entry+atr*0.9;
-               mr.stop_distance=MathAbs(mr.entry-mr.stop); mr.target_distance=MathAbs(mr.tp_hint-mr.entry);
-               mr.trigger_body_ratio=((latest.high-latest.low)>0.0 ? mr_body/(latest.high-latest.low) : 0.0); mr.vwap_side_ok=(vwap.Value()>=mr.entry);
-              }
-            if(prev.high>or_data.high+min_sweep && latest.close<or_data.high && latest.close>or_data.low && mr_body>=(latest.high-latest.low)*0.35)
-              {
-               mr.family=SETUP_MEAN_REVERSION;
-               mr.valid=true; mr.direction=-1; mr.reason="Failed OR upside reclaim";
-               mr.entry=latest.close; mr.stop=prev.high+atr*0.20; mr.tp_hint=(vwap.Value()<mr.entry ? vwap.Value() : or_data.midpoint);
-               if(mr.tp_hint>=mr.entry || mr.tp_hint==0.0) mr.tp_hint=mr.entry-atr*0.9;
-               mr.stop_distance=MathAbs(mr.entry-mr.stop); mr.target_distance=MathAbs(mr.tp_hint-mr.entry);
-               mr.trigger_body_ratio=((latest.high-latest.low)>0.0 ? mr_body/(latest.high-latest.low) : 0.0); mr.vwap_side_ok=(vwap.Value()<=mr.entry);
-              }
-           }
-        }
-      XDFSignal chosen=(orb.valid?orb:mr);
-      XDFSetupScorer scorer;
-      XDFScoreBreakdown sb=scorer.Score(chosen,or_data,atr,spread_pts,vwap_dist,regime);
+         {
+          MqlRates sig_m5[];
+          ArraySetAsSeries(sig_m5,true);
+           if(CopyRates(sym,PERIOD_M5,m5_shift,5,sig_m5)>=5)
+             {
+             long stops_level=0;
+             SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
+             double min_stop_distance=MathMax(point*5.0,(double)stops_level*point);
+             orb=orb_signal.EvaluateFromBar(sig_m5[1],sig_m5[1].close,sig_m5[1].close,or_data,vwap.Value(),atr,m15l,m15sh,min_stop_distance);
+             mr=mr_signal.EvaluateFromBars(sig_m5[1],sig_m5[2],sig_m5[1].close,sig_m5[1].close,or_data,vwap.Value(),atr);
+             }
+         }
+      XDFSignal chosen=decision.ChooseSignal(orb,mr,regime);
+      XDFScoreBreakdown sb=decision.EvaluateScore(chosen,or_data,atr,spread_pts,vwap_dist,regime);
       string blocker;
       double recent_range_price=(rates[i].high-rates[i].low);
-      bool allow=(or_complete && have_or && nf.Allow(spread_pts,InpMaxSpreadPoints,atr,InpMinATR,atr_points,vwap_dist,InpMaxVWAPDistancePoints,recent_range_price,blocker));
+      double or_width_points=(point>0.0 ? or_data.width/point : 0.0);
+      bool allow=(or_complete && have_or && decision.EvaluateBlockers(nf,spread_pts,InpMaxSpreadPoints,atr,InpMinATR,atr_points,vwap_dist,InpMaxVWAPDistancePoints,recent_range_price,or_width_points,blocker));
       if(!or_complete)
          blocker="BLOCK_BUILDING_OPENING_RANGE";
       else if(!have_or)
