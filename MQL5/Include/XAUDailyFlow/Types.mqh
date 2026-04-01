@@ -43,7 +43,8 @@ enum XDFBlocker
    BLOCKER_EXISTING_POSITION   = 11,
    BLOCKER_VOLUME              = 12,
    BLOCKER_EXECUTION_PREFLIGHT = 13,
-   BLOCKER_SESSION_CLOSED      = 14
+   BLOCKER_SESSION_CLOSED      = 14,
+   BLOCKER_NO_SETUP            = 15
   };
 
 enum XDFSessionId
@@ -97,6 +98,12 @@ struct XDFSignal
    double            stop_distance;
    double            target_distance;
    bool              vwap_side_ok;
+   int               subtype_quality;
+   int               retest_quality;
+   int               confirmation_quality;
+   int               reclaim_window_quality;
+   int               level_hold_quality;
+   int               extension_penalty;
   };
 
 struct XDFScoreBreakdown
@@ -147,6 +154,15 @@ struct XDFDecisionContext
    int               min_setup_score;
    int               mixed_setup_score;
    int               conflict_override_score;
+   int               evaluated_m5_shift;
+   datetime          evaluated_m5_time;
+   MqlRates          m5_closed[4];
+   int               m5_closed_count;
+   double            recent_range_price;
+   double            vwap_distance_points;
+   double            entry_long;
+   double            entry_short;
+   bool              live_mode;
   };
 
 struct XDFDecision
@@ -164,6 +180,9 @@ struct XDFDecision
    XDFSetupFamily    eligible_family;
    XDFSetupFamily    selected_family;
    XDFBlockerInfo    blocker;
+   string            orb_subtype;
+   string            mr_subtype;
+   string            selected_reject_reason;
   };
 
 struct XDFSymbolSpecs

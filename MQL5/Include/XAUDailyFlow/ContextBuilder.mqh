@@ -70,16 +70,19 @@ bool XDF_BuildDecisionContext(const string symbol,
 
    MqlRates m5[];
    ArraySetAsSeries(m5,true);
-   int m5_shift=(live_mode?0:iBarShift(symbol,PERIOD_M5,ts,false));
-   if(m5_shift<0) m5_shift=0;
-   if(CopyRates(symbol,PERIOD_M5,m5_shift,3,m5)>=3)
-      XDF_UpdateSessionTouches(runtime_state,m5[1].high,m5[1].low,out_or);
+   int m5_shift=(live_mode?1:iBarShift(symbol,PERIOD_M5,ts,false)+1);
+   if(m5_shift<1) m5_shift=1;
+   int m5_count=CopyRates(symbol,PERIOD_M5,m5_shift,6,m5);
+   if(m5_count>=1)
+      XDF_UpdateSessionTouches(runtime_state,m5[0].high,m5[0].low,out_or);
    session_state.touched_above=runtime_state.touched_above;
    session_state.touched_below=runtime_state.touched_below;
 
    double bid=SymbolInfoDouble(symbol,SYMBOL_BID);
    double ask=SymbolInfoDouble(symbol,SYMBOL_ASK);
    double mid=((bid>0.0 && ask>0.0)?(bid+ask)/2.0:SymbolInfoDouble(symbol,SYMBOL_LAST));
+   if(!live_mode && m5_count>=1)
+      mid=m5[0].close;
    if(mid<=0.0)
       mid=vwap.Value();
 
@@ -90,7 +93,7 @@ bool XDF_BuildDecisionContext(const string symbol,
    out_ctx.mid_price=mid;
    out_ctx.atr_m5=(live_mode?ind.ATR():ind.ATRAt(ts));
    out_ctx.spread_points=((ask>0.0 && bid>0.0 && specs.point>0.0)?((ask-bid)/specs.point):0.0);
-   if(!live_mode && specs.point>0.0 && m5_shift>=1 && CopyRates(symbol,PERIOD_M5,m5_shift,2,m5)>=2)
+   if(!live_mode && specs.point>0.0 && m5_count>=1)
       out_ctx.spread_points=((m5[0].high-m5[0].low)/specs.point)*XDF_AUDIT_SPREAD_RANGE_FACTOR;
    out_ctx.max_spread_points=max_spread_points;
    out_ctx.min_atr=min_atr;
@@ -101,6 +104,25 @@ bool XDF_BuildDecisionContext(const string symbol,
    out_ctx.mixed_setup_score=mixed_setup_score;
    out_ctx.conflict_override_score=conflict_override_score;
    out_ctx.m15=(live_mode?ind.BuildM15Context(mid):ind.BuildM15ContextAt(ts,mid));
+   out_ctx.evaluated_m5_shift=m5_shift;
+   out_ctx.evaluated_m5_time=(m5_count>=1?m5[0].time:0);
+   out_ctx.m5_closed_count=MathMin(m5_count,4);
+   for(int i=0;i<out_ctx.m5_closed_count;i++)
+      out_ctx.m5_closed[i]=m5[i];
+   out_ctx.recent_range_price=(m5_count>=1?(m5[0].high-m5[0].low):0.0);
+   out_ctx.vwap_distance_points=(specs.point>0.0?MathAbs(mid-out_ctx.vwap)/specs.point:0.0);
+   double spread_price=out_ctx.spread_points*specs.point;
+   if(live_mode)
+     {
+      out_ctx.entry_long=(ask>0.0?ask:mid+spread_price*0.5);
+      out_ctx.entry_short=(bid>0.0?bid:mid-spread_price*0.5);
+     }
+   else
+     {
+      out_ctx.entry_long=mid+spread_price*0.5;
+      out_ctx.entry_short=mid-spread_price*0.5;
+     }
+   out_ctx.live_mode=live_mode;
    return(true);
   }
 

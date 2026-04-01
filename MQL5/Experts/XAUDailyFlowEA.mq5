@@ -434,11 +434,11 @@ void OnTick()
    if(!decision_ok)
       {
        g_counters.setups_rejected++;
-      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s orbEligible=%s orbScore=%d mrEligible=%s mrScore=%d selected=%d",
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s orbEligible=%s orbSubtype=%s orbScore=%d mrEligible=%s mrSubtype=%s mrScore=%d selected=%d reason=%s",
                                              XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
-                                             (decision.orb_signal.valid?"Y":"N"),decision.orb_score.total,
-                                             (decision.mr_signal.valid?"Y":"N"),decision.mr_score.total,
-                                             (int)decision.selected_family));
+                                             (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_score.total,
+                                             (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_score.total,
+                                             (int)decision.selected_family,decision.selected_reject_reason));
        XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_regime,g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
@@ -450,7 +450,10 @@ void OnTick()
                                     score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,
                                     score.vwap_quality,score.noise_penalty,score.total,(int)chosen.family));
    if(decision.orb_signal.valid && decision.mr_signal.valid)
-      g_diag.Log("FAMILY_SELECT",StringFormat("bothEligible=Y orbScore=%d mrScore=%d selected=%d",decision.orb_score.total,decision.mr_score.total,(int)decision.selected_family));
+      g_diag.Log("FAMILY_SELECT",StringFormat("bothEligible=Y orbSubtype=%s orbScore=%d mrSubtype=%s mrScore=%d selected=%d reason=%s",
+                                              decision.orb_subtype,decision.orb_score.total,
+                                              decision.mr_subtype,decision.mr_score.total,
+                                              (int)decision.selected_family,decision.selected_reject_reason));
 
      if(g_daily_blocked)
       {

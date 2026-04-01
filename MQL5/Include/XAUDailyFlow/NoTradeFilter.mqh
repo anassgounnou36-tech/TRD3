@@ -38,7 +38,7 @@ public:
       m_avg_bar_range_points=0.0;
      }
 
-   bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,const XDFM15Context &m15,bool both_sides_violated,XDFBlockerInfo &blocker)
+    bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,const XDFM15Context &m15,bool both_sides_violated,const XDFSetupFamily family,XDFBlockerInfo &blocker)
      {
       blocker.code=BLOCKER_NONE;
       blocker.message="";
@@ -56,7 +56,8 @@ public:
       else
          m_avg_bar_range_points=(m_avg_bar_range_points*0.85)+(recent_range_atr_ratio*0.15);
 
-      double adaptive_max_spread=max_spread;
+      double spread_scale=(family==SETUP_ORB_CONTINUATION?1.10:(family==SETUP_MEAN_REVERSION?0.95:1.0));
+      double adaptive_max_spread=max_spread*spread_scale;
       if(atr_points>0.0)
          adaptive_max_spread=MathMin(max_spread,MathMax(max_spread*XDF_SPREAD_MIN_FLOOR_RATIO,atr_points*XDF_SPREAD_ATR_MULTIPLIER));
       adaptive_max_spread=MathMax(adaptive_max_spread,m_avg_spread_points*XDF_SPREAD_AVG_MULTIPLIER);
@@ -75,7 +76,8 @@ public:
           blocker.message=StringFormat("atr %.2f < min %.2f",atr,min_atr);
           return(false);
          }
-      double adaptive_vwap_limit=max_vwap_dist;
+      double vwap_scale=(family==SETUP_ORB_CONTINUATION?1.35:(family==SETUP_MEAN_REVERSION?0.90:1.0));
+      double adaptive_vwap_limit=max_vwap_dist*vwap_scale;
       if(atr_points>0.0)
          adaptive_vwap_limit=MathMin(max_vwap_dist,MathMax(max_vwap_dist*0.70,atr_points*XDF_VWAP_ATR_MULTIPLIER));
       if(or_width_points>0.0)

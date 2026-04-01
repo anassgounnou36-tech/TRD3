@@ -26,6 +26,7 @@ string XDF_BlockerToString(XDFBlocker blocker)
    if(blocker==BLOCKER_VOLUME) return("BLOCKER_VOLUME");
    if(blocker==BLOCKER_EXECUTION_PREFLIGHT) return("BLOCKER_EXECUTION_PREFLIGHT");
    if(blocker==BLOCKER_SESSION_CLOSED) return("BLOCKER_SESSION_CLOSED");
+   if(blocker==BLOCKER_NO_SETUP) return("BLOCKER_NO_SETUP");
    return("BLOCKER_UNKNOWN");
   }
 

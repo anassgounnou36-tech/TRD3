@@ -61,6 +61,17 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Improved historical-context handling by adding time-anchored indicator helpers (`ATRAt`, `BuildM15ContextAt`) used by shared context building.
 - Strengthened init diagnostics to log London/NewYork start, OR end, and trade end timestamps in broker server time.
 
+## v1.5 elite signal-generation upgrade
+
+- Signal evaluation is now timestamp-aware: ORB/MR modules expose shift-based `EvaluateAt(...)` and use closed M5 bars aligned to the evaluated timestamp.
+- Shared context carries evaluated M5 shift/time plus aligned closed-bar window inputs, reducing historical audit drift.
+- ORB now supports multiple continuation subtypes (direct breakout, retest-hold, two-bar continuation, break-close-hold) and chooses best valid candidate.
+- MR now supports multiple reclaim/failure subtypes (immediate sweep-reclaim, failed-break confirm, delayed reclaim window, reclaim+midpoint/VWAP confirm) and chooses best valid candidate.
+- Added explicit `BLOCKER_NO_SETUP` to distinguish true no-setup outcomes from regime blocks.
+- Mixed regime remains tradable by scoring both families and selecting higher-quality valid candidate.
+- Family-specific filtering behavior introduced: ORB tolerates larger VWAP extension (with scoring penalty), MR remains stricter.
+- BarAudit output now surfaces `orb_valid`, `mr_valid`, `orb_subtype`, `mr_subtype`, `orb_score`, `mr_score`, and reject reason for faster root-cause diagnosis.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.
