@@ -1,0 +1,23 @@
+# Demo Test Checklist
+
+- [ ] Attach XAUDailyFlowEA to XM GOLD alias symbol
+- [ ] Verify symbol auto-resolution selects GOLD/XAU alias
+- [ ] Validate panel shows OR, VWAP, regime, setup score, blocker reason
+- [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
+- [ ] Confirm no trading outside London/NY windows
+- [ ] Confirm init logs print configured London/NY windows (broker-server dependent)
+- [ ] Confirm max daily loss blocker engages
+- [ ] Confirm max trades/day and per session limits
+- [ ] Confirm no overnight holds (timeout exits)
+- [ ] Confirm spread/vwap-distance filters block noisy conditions
+- [ ] Confirm adaptive filter behavior (ATR-relative spread/VWAP and compression dead-session block)
+- [ ] Confirm regime logs include explicit reason summary
+- [ ] Confirm score logs include full breakdown readability
+- [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
+- [ ] Confirm order post-send logs include retcode + description + order/deal tickets
+- [ ] Confirm SL modify logs include old/new SL, delta, retcode details
+- [ ] Confirm InpSizeFromEquity=true sizes from equity
+- [ ] Confirm InpSizeFromEquity=false sizes from balance
+- [ ] Run XAUDailyFlow_BarAudit with bar-count mode and inspect strategy-aware output
+- [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
+- [ ] Confirm no `test.txt` artifact remains in repository
