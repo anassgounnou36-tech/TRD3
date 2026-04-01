@@ -39,6 +39,8 @@ class XDFExecutionEngine
   {
 private:
    static const double XDF_MIN_MODIFY_DELTA_POINTS;
+   static const double XDF_VOLUME_TOLERANCE;
+   static const double XDF_STEP_ALIGNMENT_TOLERANCE;
    CTrade m_trade;
    string m_symbol;
    int m_deviation;
@@ -165,12 +167,12 @@ private:
       long filling_flags=0;
       if(!SymbolInfoInteger(symbol,SYMBOL_FILLING_MODE,filling_flags))
          return(ORDER_FILLING_IOC);
-      // Implemented filling-mode selection order for multi-mode symbols: FOK, then IOC, then BOC.
-      if((filling_flags & SYMBOL_FILLING_FOK)==SYMBOL_FILLING_FOK)
+      // Implements filling-mode selection order for multi-mode symbols: FOK, then IOC, then BOC.
+      if((filling_flags & SYMBOL_FILLING_FOK)!=0)
          return(ORDER_FILLING_FOK);
-      if((filling_flags & SYMBOL_FILLING_IOC)==SYMBOL_FILLING_IOC)
+      if((filling_flags & SYMBOL_FILLING_IOC)!=0)
          return(ORDER_FILLING_IOC);
-      if((filling_flags & SYMBOL_FILLING_BOC)==SYMBOL_FILLING_BOC)
+      if((filling_flags & SYMBOL_FILLING_BOC)!=0)
          return(ORDER_FILLING_BOC);
       return(ORDER_FILLING_IOC);
      }
@@ -357,7 +359,7 @@ public:
          return(false);
         }
 
-       if(req.lots<req.volume_min || req.lots>req.volume_max)
+       if(req.lots<(req.volume_min-XDF_VOLUME_TOLERANCE) || req.lots>(req.volume_max+XDF_VOLUME_TOLERANCE))
          {
           category="invalid volume";
           reason=StringFormat("lots %.2f outside [%.2f, %.2f]",req.lots,req.volume_min,req.volume_max);
@@ -366,7 +368,7 @@ public:
       if(req.volume_step>0.0)
         {
          double steps=req.lots/req.volume_step;
-         if(MathAbs(steps-MathRound(steps))>1e-6)
+          if(MathAbs(steps-MathRound(steps))>XDF_STEP_ALIGNMENT_TOLERANCE)
            {
             category="invalid volume";
             reason=StringFormat("lots %.2f not aligned to step %.2f",req.lots,req.volume_step);
@@ -510,5 +512,9 @@ public:
   };
 
 const double XDFExecutionEngine::XDF_MIN_MODIFY_DELTA_POINTS=3.0;
+// Floating-point tolerance for volume bounds checks against broker min/max.
+const double XDFExecutionEngine::XDF_VOLUME_TOLERANCE=1e-8;
+// Floating-point tolerance for lot-step alignment checks.
+const double XDFExecutionEngine::XDF_STEP_ALIGNMENT_TOLERANCE=1e-6;
 
 #endif
