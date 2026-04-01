@@ -13,7 +13,8 @@ enum XDFSetupFamily
   {
    SETUP_NONE             = 0,
    SETUP_ORB_CONTINUATION = 1,
-   SETUP_MEAN_REVERSION   = 2
+   SETUP_MEAN_REVERSION   = 2,
+   SETUP_BOTH             = 3
   };
 
 enum XDFMgmtState
@@ -104,6 +105,12 @@ struct XDFSignal
    int               reclaim_window_quality;
    int               level_hold_quality;
    int               extension_penalty;
+   string            subtype;
+   string            reason_invalid;
+   int               raw_trigger_quality;
+   int               raw_context_quality;
+   int               raw_extension_penalty;
+   int               raw_structure_quality;
   };
 
 struct XDFScoreBreakdown
@@ -183,6 +190,8 @@ struct XDFDecision
    string            orb_subtype;
    string            mr_subtype;
    string            selected_reject_reason;
+   bool              eligible_orb;
+   bool              eligible_mr;
   };
 
 struct XDFSymbolSpecs

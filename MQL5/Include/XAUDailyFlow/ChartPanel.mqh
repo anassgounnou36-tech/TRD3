@@ -23,7 +23,7 @@ void XDF_UpdatePanel(const string symbol,
                      const string position_state,
                      const string mgmt_state)
   {
-   string eligible_text=(eligible_family==SETUP_ORB_CONTINUATION?"ORB":(eligible_family==SETUP_MEAN_REVERSION?"MR":"NONE"));
+   string eligible_text=(eligible_family==SETUP_BOTH?"BOTH":(eligible_family==SETUP_ORB_CONTINUATION?"ORB":(eligible_family==SETUP_MEAN_REVERSION?"MR":"NONE")));
    string selected_text=(selected_family==SETUP_ORB_CONTINUATION?"ORB":(selected_family==SETUP_MEAN_REVERSION?"MR":"NONE"));
    string txt=StringFormat(
       "XAUDailyFlowEA\nSymbol: %s\nServer Time: %s\nSession: %s\nOR Built: %s\nOR H/L/M/W: %.2f / %.2f / %.2f / %.2f\nVWAP: %.2f\nRegime: %s\nEligible Family: %s\nSelected Family: %s\nSetup Score: %d\nBlocker: %s\nSpread(pts): %.1f\nM15 Context: %s\nPosition State: %s\nManagement State: %s\nHas Position: %s\nDaily P/L%%: %.2f\nDaily Kill-Switch: %s",

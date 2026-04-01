@@ -118,11 +118,11 @@ void OnStart()
 
       XDFDecision dec;
       bool ok=decision_engine.XDF_EvaluateDecision(filter,ctx,dec);
-      Print(StringFormat("[%s] ORW=%.2f VWAP=%.2f Regime=%s(%s) Eligible=%d Selected=%d Score=%d orb_valid=%s mr_valid=%s orb_subtype=%s mr_subtype=%s orb_score=%d mr_score=%d Blocker=%s detail=%s reject=%s allow=%s",
+      Print(StringFormat("[%s] ORW=%.2f VWAP=%.2f Regime=%s(%s) eligible_state=%d Selected=%d Score=%d orb_valid=%s orb_subtype=%s orb_reason_invalid=%s orb_score=%d mr_valid=%s mr_subtype=%s mr_reason_invalid=%s mr_score=%d Blocker=%s detail=%s reject=%s allow=%s",
                          TimeToString(ts,TIME_DATE|TIME_MINUTES),or_data.width,vwap.Value(),XDF_RegimeToString((int)dec.regime),dec.regime_reason,
                           (int)dec.eligible_family,(int)dec.selected_family,dec.selected_score.total,
-                          (dec.orb_signal.valid?"Y":"N"),(dec.mr_signal.valid?"Y":"N"),
-                          dec.orb_subtype,dec.mr_subtype,dec.orb_score.total,dec.mr_score.total,
+                          (dec.orb_signal.valid?"Y":"N"),dec.orb_subtype,dec.orb_signal.reason_invalid,dec.orb_score.total,
+                          (dec.mr_signal.valid?"Y":"N"),dec.mr_subtype,dec.mr_signal.reason_invalid,dec.mr_score.total,
                           XDF_BlockerToString(dec.blocker.code),dec.blocker.message,dec.selected_reject_reason,(ok?"Y":"N")));
       }
 

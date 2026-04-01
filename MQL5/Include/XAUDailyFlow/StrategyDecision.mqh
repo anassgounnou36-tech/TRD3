@@ -64,9 +64,18 @@ public:
       SymbolInfoInteger(ctx.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
       double min_stop_distance=MathMax(ctx.point*5.0,(double)stops_level*ctx.point);
       EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,out_decision.orb_signal,out_decision.mr_signal);
-      out_decision.eligible_family=(out_decision.orb_signal.valid && out_decision.mr_signal.valid ? SETUP_NONE : (out_decision.orb_signal.valid?SETUP_ORB_CONTINUATION:(out_decision.mr_signal.valid?SETUP_MEAN_REVERSION:SETUP_NONE)));
-      out_decision.orb_subtype=out_decision.orb_signal.reason;
-      out_decision.mr_subtype=out_decision.mr_signal.reason;
+      out_decision.eligible_orb=out_decision.orb_signal.valid;
+      out_decision.eligible_mr=out_decision.mr_signal.valid;
+      if(out_decision.eligible_orb && out_decision.eligible_mr)
+         out_decision.eligible_family=SETUP_BOTH;
+      else if(out_decision.eligible_orb)
+         out_decision.eligible_family=SETUP_ORB_CONTINUATION;
+      else if(out_decision.eligible_mr)
+         out_decision.eligible_family=SETUP_MEAN_REVERSION;
+      else
+         out_decision.eligible_family=SETUP_NONE;
+      out_decision.orb_subtype=out_decision.orb_signal.subtype;
+      out_decision.mr_subtype=out_decision.mr_signal.subtype;
 
       if(out_decision.orb_signal.valid)
          out_decision.orb_score=EvaluateScore(out_decision.orb_signal,ctx.or_data,ctx.atr_m5,ctx.spread_points,vwap_dist_points,out_decision.regime,ctx.m15);
@@ -80,14 +89,14 @@ public:
              out_decision.selected_signal=out_decision.orb_signal;
              out_decision.selected_score=out_decision.orb_score;
              out_decision.selected_family=SETUP_ORB_CONTINUATION;
-             out_decision.selected_reject_reason=StringFormat("mr_rejected_lower_score_%d_vs_%d",out_decision.mr_score.total,out_decision.orb_score.total);
+              out_decision.selected_reject_reason=StringFormat("mr_lost_on_score_%d_vs_%d subtype=%s",out_decision.mr_score.total,out_decision.orb_score.total,out_decision.mr_subtype);
             }
           else
             {
              out_decision.selected_signal=out_decision.mr_signal;
              out_decision.selected_score=out_decision.mr_score;
              out_decision.selected_family=SETUP_MEAN_REVERSION;
-             out_decision.selected_reject_reason=StringFormat("orb_rejected_lower_score_%d_vs_%d",out_decision.orb_score.total,out_decision.mr_score.total);
+              out_decision.selected_reject_reason=StringFormat("orb_lost_on_score_%d_vs_%d subtype=%s",out_decision.orb_score.total,out_decision.mr_score.total,out_decision.orb_subtype);
             }
         }
       else if(out_decision.orb_signal.valid || out_decision.mr_signal.valid)
@@ -95,13 +104,15 @@ public:
           out_decision.selected_signal=ChooseSignal(out_decision.orb_signal,out_decision.mr_signal,out_decision.regime);
           out_decision.selected_family=out_decision.selected_signal.family;
           out_decision.selected_score=EvaluateScore(out_decision.selected_signal,ctx.or_data,ctx.atr_m5,ctx.spread_points,vwap_dist_points,out_decision.regime,ctx.m15);
-          out_decision.selected_reject_reason="single_family";
+          out_decision.selected_reject_reason="single_family_valid";
          }
 
       if(!out_decision.selected_signal.valid)
         {
          out_decision.blocker.code=BLOCKER_NO_SETUP;
-         out_decision.blocker.message="no valid ORB/MR setup";
+         out_decision.blocker.message=StringFormat("no setup orb=%s(%s) mr=%s(%s)",
+                                                  (out_decision.orb_signal.valid?"Y":"N"),out_decision.orb_signal.reason_invalid,
+                                                  (out_decision.mr_signal.valid?"Y":"N"),out_decision.mr_signal.reason_invalid);
          out_decision.selected_reject_reason="no_setup";
          return(false);
         }

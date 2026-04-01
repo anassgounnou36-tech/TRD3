@@ -56,10 +56,16 @@ public:
       else
          m_avg_bar_range_points=(m_avg_bar_range_points*0.85)+(recent_range_atr_ratio*0.15);
 
-      double spread_scale=(family==SETUP_ORB_CONTINUATION?1.10:(family==SETUP_MEAN_REVERSION?0.95:1.0));
+      double spread_scale=(family==SETUP_ORB_CONTINUATION?1.18:(family==SETUP_MEAN_REVERSION?0.92:1.0));
       double adaptive_max_spread=max_spread*spread_scale;
       if(atr_points>0.0)
-         adaptive_max_spread=MathMin(max_spread,MathMax(max_spread*XDF_SPREAD_MIN_FLOOR_RATIO,atr_points*XDF_SPREAD_ATR_MULTIPLIER));
+        {
+         double atr_based=MathMax(max_spread*XDF_SPREAD_MIN_FLOOR_RATIO,atr_points*XDF_SPREAD_ATR_MULTIPLIER);
+         if(family==SETUP_ORB_CONTINUATION)
+            adaptive_max_spread=MathMax(adaptive_max_spread,atr_based*1.15);
+         else
+            adaptive_max_spread=MathMin(adaptive_max_spread,atr_based);
+        }
       adaptive_max_spread=MathMax(adaptive_max_spread,m_avg_spread_points*XDF_SPREAD_AVG_MULTIPLIER);
       if(or_width_points>0.0)
          adaptive_max_spread=MathMax(adaptive_max_spread,or_width_points*XDF_SPREAD_OR_MULTIPLIER);
@@ -76,19 +82,31 @@ public:
           blocker.message=StringFormat("atr %.2f < min %.2f",atr,min_atr);
           return(false);
          }
-      double vwap_scale=(family==SETUP_ORB_CONTINUATION?1.35:(family==SETUP_MEAN_REVERSION?0.90:1.0));
+      double vwap_scale=(family==SETUP_ORB_CONTINUATION?1.85:(family==SETUP_MEAN_REVERSION?0.88:1.0));
       double adaptive_vwap_limit=max_vwap_dist*vwap_scale;
       if(atr_points>0.0)
-         adaptive_vwap_limit=MathMin(max_vwap_dist,MathMax(max_vwap_dist*0.70,atr_points*XDF_VWAP_ATR_MULTIPLIER));
+        {
+         double atr_based=MathMax(max_vwap_dist*0.70,atr_points*XDF_VWAP_ATR_MULTIPLIER);
+         if(family==SETUP_ORB_CONTINUATION)
+            adaptive_vwap_limit=MathMax(adaptive_vwap_limit,atr_based*1.40);
+         else
+            adaptive_vwap_limit=MathMin(adaptive_vwap_limit,atr_based);
+        }
       if(or_width_points>0.0)
-         adaptive_vwap_limit=MathMin(adaptive_vwap_limit,MathMax(max_vwap_dist*0.55,or_width_points*XDF_VWAP_OR_MULTIPLIER));
+        {
+         double or_based=MathMax(max_vwap_dist*0.55,or_width_points*XDF_VWAP_OR_MULTIPLIER);
+         if(family==SETUP_ORB_CONTINUATION)
+            adaptive_vwap_limit=MathMax(adaptive_vwap_limit,or_based*1.35);
+         else
+            adaptive_vwap_limit=MathMin(adaptive_vwap_limit,or_based);
+        }
       if(vwap_dist_points>adaptive_vwap_limit)
          {
           blocker.code=BLOCKER_VWAP_EXTENSION;
           blocker.message=StringFormat("vwapDist %.1f > adaptive %.1f",vwap_dist_points,adaptive_vwap_limit);
           return(false);
          }
-      if(atr_points>0.0 && vwap_dist_points>(atr_points*XDF_VWAP_ATR_MULTIPLIER))
+      if(family==SETUP_MEAN_REVERSION && atr_points>0.0 && vwap_dist_points>(atr_points*XDF_VWAP_ATR_MULTIPLIER))
          {
           blocker.code=BLOCKER_VWAP_EXTENSION;
           blocker.message=StringFormat("vwapDist %.1f > atrFactor %.1f",vwap_dist_points,atr_points*XDF_VWAP_ATR_MULTIPLIER);
