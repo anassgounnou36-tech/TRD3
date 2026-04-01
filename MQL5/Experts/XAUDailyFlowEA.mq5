@@ -508,7 +508,7 @@ void OnTick()
     if(!chosen.valid)
       {
        g_last_blocker="BLOCK_REGIME_OR_TRIGGER_MISMATCH";
-       g_diag.Log("SETUP_REJECT","family=NONE cause=regime_or_trigger_mismatch");
+       g_diag.Log("SETUP_REJECT",StringFormat("family=%d cause=regime_or_trigger_mismatch",(int)chosen.family));
        XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
        return;
       }

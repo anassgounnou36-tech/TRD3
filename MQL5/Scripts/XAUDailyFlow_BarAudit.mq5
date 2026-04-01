@@ -142,6 +142,8 @@ void OnStart()
              long stops_level=0;
              SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
              double min_stop_distance=MathMax(point*5.0,(double)stops_level*point);
+             // Audit uses closed-bar proxy entry (same close for both directions) to keep deterministic historical replay.
+             // Live EA uses current Ask/Bid, so tiny entry-distance differences versus live execution can still occur.
              orb=orb_signal.EvaluateFromBar(sig_m5[1],sig_m5[1].close,sig_m5[1].close,or_data,vwap.Value(),atr,m15l,m15sh,min_stop_distance);
              mr=mr_signal.EvaluateFromBars(sig_m5[1],sig_m5[2],sig_m5[1].close,sig_m5[1].close,or_data,vwap.Value(),atr);
              }

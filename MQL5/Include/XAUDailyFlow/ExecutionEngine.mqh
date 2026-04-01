@@ -23,6 +23,7 @@ struct XDFNormalizedTradeRequest
 class XDFExecutionEngine
   {
 private:
+   static const double XDF_MIN_MODIFY_DELTA_POINTS;
    CTrade m_trade;
    string m_symbol;
    int m_deviation;
@@ -32,6 +33,7 @@ private:
       long filling_flags=0;
       if(!SymbolInfoInteger(symbol,SYMBOL_FILLING_MODE,filling_flags))
          return(ORDER_FILLING_IOC);
+      // Implemented filling-mode selection order for multi-mode symbols: FOK, then IOC, then BOC.
       if((filling_flags & SYMBOL_FILLING_FOK)==SYMBOL_FILLING_FOK)
          return(ORDER_FILLING_FOK);
       if((filling_flags & SYMBOL_FILLING_IOC)==SYMBOL_FILLING_IOC)
@@ -275,7 +277,7 @@ public:
 
    bool ModifySLTP(const string symbol,double old_sl,double sl,double tp,double point,string &diag)
       {
-       if(point>0.0 && MathAbs(sl-old_sl)<(point*3.0))
+       if(point>0.0 && MathAbs(sl-old_sl)<(point*XDF_MIN_MODIFY_DELTA_POINTS))
          {
           diag=StringFormat("MODIFY symbol=%s skipped=true reason=no_meaningful_change oldSL=%.2f newSL=%.2f tp=%.2f",symbol,old_sl,sl,tp);
           return(false);
@@ -291,5 +293,7 @@ public:
        return(ok);
       }
   };
+
+const double XDFExecutionEngine::XDF_MIN_MODIFY_DELTA_POINTS=3.0;
 
 #endif

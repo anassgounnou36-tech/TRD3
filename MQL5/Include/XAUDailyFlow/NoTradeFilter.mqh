@@ -8,7 +8,7 @@ class XDFNoTradeFilter
 private:
    double m_avg_spread_points;
    double m_avg_or_width_points;
-   double m_avg_range_points;
+   double m_avg_bar_range_points;
    static const double XDF_SPREAD_ATR_MULTIPLIER;
    static const double XDF_SPREAD_MIN_FLOOR_RATIO;
    static const double XDF_SPREAD_AVG_MULTIPLIER;
@@ -23,7 +23,7 @@ private:
    static const double XDF_COMPRESSION_RANGE_ATR_RATIO;
    static const double XDF_COMPRESSION_BEHAVIOR_RATIO;
 public:
-   XDFNoTradeFilter():m_avg_spread_points(0.0),m_avg_or_width_points(0.0),m_avg_range_points(0.0){}
+   XDFNoTradeFilter():m_avg_spread_points(0.0),m_avg_or_width_points(0.0),m_avg_bar_range_points(0.0){}
 
 public:
    string ReasonSpreadTooHigh() const { return("BLOCK_SPREAD_TOO_HIGH"); }
@@ -35,7 +35,7 @@ public:
      {
       m_avg_spread_points=0.0;
       m_avg_or_width_points=0.0;
-      m_avg_range_points=0.0;
+      m_avg_bar_range_points=0.0;
      }
 
    bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,string &reason)
@@ -49,11 +49,11 @@ public:
          m_avg_or_width_points=or_width_points;
       else
          m_avg_or_width_points=(m_avg_or_width_points*0.85)+(or_width_points*0.15);
-      double recent_range_points=(atr_points>0.0 ? recent_range_price/(atr/atr_points) : 0.0);
-      if(m_avg_range_points<=0.0)
-         m_avg_range_points=recent_range_points;
+      double recent_range_atr_ratio=(atr_points>0.0 ? recent_range_price/(atr/atr_points) : 0.0);
+      if(m_avg_bar_range_points<=0.0)
+         m_avg_bar_range_points=recent_range_atr_ratio;
       else
-         m_avg_range_points=(m_avg_range_points*0.85)+(recent_range_points*0.15);
+         m_avg_bar_range_points=(m_avg_bar_range_points*0.85)+(recent_range_atr_ratio*0.15);
 
       double adaptive_max_spread=max_spread;
       if(atr_points>0.0)
@@ -102,7 +102,7 @@ public:
          reason=ReasonCompressionDeadSession();
          return(false);
         }
-      if(m_avg_range_points>0.0 && recent_range_points<(m_avg_range_points*XDF_COMPRESSION_BEHAVIOR_RATIO))
+      if(m_avg_bar_range_points>0.0 && recent_range_atr_ratio<(m_avg_bar_range_points*XDF_COMPRESSION_BEHAVIOR_RATIO))
         {
          reason=ReasonCompressionDeadSession();
          return(false);
