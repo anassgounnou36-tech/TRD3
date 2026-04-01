@@ -26,10 +26,10 @@ public:
    XDFNoTradeFilter():m_avg_spread_points(0.0),m_avg_or_width_points(0.0),m_avg_bar_range_points(0.0){}
 
 public:
-   string ReasonSpreadTooHigh() const { return("BLOCK_SPREAD_TOO_HIGH"); }
-   string ReasonATRTooLow() const { return("BLOCK_ATR_TOO_LOW"); }
-   string ReasonVWAPOverextended() const { return("BLOCK_VWAP_OVEREXTENSION"); }
-   string ReasonCompressionDeadSession() const { return("BLOCK_DEAD_SESSION_COMPRESSION"); }
+   string ReasonSpreadTooHigh() const { return("BLOCKER_SPREAD"); }
+   string ReasonATRTooLow() const { return("BLOCKER_ATR"); }
+   string ReasonVWAPOverextended() const { return("BLOCKER_VWAP_EXTENSION"); }
+   string ReasonCompressionDeadSession() const { return("BLOCKER_OR_TOO_NARROW"); }
 
    void ResetSession()
      {
@@ -38,9 +38,10 @@ public:
       m_avg_bar_range_points=0.0;
      }
 
-   bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,string &reason)
+   bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,const XDFM15Context &m15,bool both_sides_violated,XDFBlockerInfo &blocker)
      {
-      reason="";
+      blocker.code=BLOCKER_NONE;
+      blocker.message="";
       if(m_avg_spread_points<=0.0)
          m_avg_spread_points=spread_points;
       else
@@ -62,51 +63,64 @@ public:
       if(or_width_points>0.0)
          adaptive_max_spread=MathMax(adaptive_max_spread,or_width_points*XDF_SPREAD_OR_MULTIPLIER);
 
-      if(spread_points>adaptive_max_spread)
-        {
-         reason=ReasonSpreadTooHigh();
-         return(false);
-        }
+       if(spread_points>adaptive_max_spread)
+         {
+          blocker.code=BLOCKER_SPREAD;
+          blocker.message=StringFormat("spread %.1f > adaptive %.1f",spread_points,adaptive_max_spread);
+          return(false);
+         }
       if(atr<min_atr)
-        {
-         reason=ReasonATRTooLow();
-         return(false);
-        }
+         {
+          blocker.code=BLOCKER_ATR;
+          blocker.message=StringFormat("atr %.2f < min %.2f",atr,min_atr);
+          return(false);
+         }
       double adaptive_vwap_limit=max_vwap_dist;
       if(atr_points>0.0)
          adaptive_vwap_limit=MathMin(max_vwap_dist,MathMax(max_vwap_dist*0.70,atr_points*XDF_VWAP_ATR_MULTIPLIER));
       if(or_width_points>0.0)
          adaptive_vwap_limit=MathMin(adaptive_vwap_limit,MathMax(max_vwap_dist*0.55,or_width_points*XDF_VWAP_OR_MULTIPLIER));
       if(vwap_dist_points>adaptive_vwap_limit)
-        {
-         reason=ReasonVWAPOverextended();
-         return(false);
-        }
+         {
+          blocker.code=BLOCKER_VWAP_EXTENSION;
+          blocker.message=StringFormat("vwapDist %.1f > adaptive %.1f",vwap_dist_points,adaptive_vwap_limit);
+          return(false);
+         }
       if(atr_points>0.0 && vwap_dist_points>(atr_points*XDF_VWAP_ATR_MULTIPLIER))
-        {
-         reason=ReasonVWAPOverextended();
-         return(false);
-        }
+         {
+          blocker.code=BLOCKER_VWAP_EXTENSION;
+          blocker.message=StringFormat("vwapDist %.1f > atrFactor %.1f",vwap_dist_points,atr_points*XDF_VWAP_ATR_MULTIPLIER);
+          return(false);
+         }
       if(atr_points>0.0 && or_width_points>0.0)
         {
          double min_or=MathMax(atr_points*XDF_OR_ATR_MIN_MULTIPLIER,m_avg_or_width_points*XDF_OR_BEHAVIOR_MIN_MULTIPLIER);
          double max_or=MathMin(atr_points*XDF_OR_ATR_MAX_MULTIPLIER,MathMax(m_avg_or_width_points*XDF_OR_BEHAVIOR_MAX_MULTIPLIER,min_or*1.2));
-         if(or_width_points<min_or || or_width_points>max_or)
-           {
-            reason=ReasonCompressionDeadSession();
-            return(false);
-           }
-        }
+          if(or_width_points<min_or || or_width_points>max_or)
+            {
+             blocker.code=(or_width_points<min_or?BLOCKER_OR_TOO_NARROW:BLOCKER_OR_TOO_WIDE);
+             blocker.message=StringFormat("orWidth %.1f outside [%.1f, %.1f]",or_width_points,min_or,max_or);
+             return(false);
+            }
+         }
       if(atr<(min_atr*XDF_COMPRESSION_ATR_NEAR_FACTOR) && recent_range_price<(atr*XDF_COMPRESSION_RANGE_ATR_RATIO))
-        {
-         reason=ReasonCompressionDeadSession();
-         return(false);
-        }
+         {
+          blocker.code=BLOCKER_ATR;
+          blocker.message="dead session compression near ATR floor";
+          return(false);
+         }
       if(m_avg_bar_range_points>0.0 && recent_range_atr_ratio<(m_avg_bar_range_points*XDF_COMPRESSION_BEHAVIOR_RATIO))
-        {
-         reason=ReasonCompressionDeadSession();
-         return(false);
-        }
+         {
+          blocker.code=BLOCKER_OR_TOO_NARROW;
+          blocker.message="range compression below session behavior";
+          return(false);
+         }
+      if(both_sides_violated && m15.slope_strength<0.05)
+         {
+          blocker.code=BLOCKER_REGIME;
+          blocker.message="two-sided violation with weak M15 slope";
+          return(false);
+         }
       return(true);
      }
   };

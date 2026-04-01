@@ -6,20 +6,20 @@
 class XDFRegimeEngine
   {
 public:
-   XDFRegime Detect(const XDFOpeningRange &or_data,double atr,double vwap,double price,bool both_sides_violated,double m15_slope,bool m15_long_aligned,bool m15_short_aligned,string &reason)
-     {
-      reason="";
-      if(!or_data.valid || atr<=0.0)
+   XDFRegime Detect(const XDFOpeningRange &or_data,double atr,double vwap,double price,bool both_sides_violated,const XDFM15Context &m15,string &reason)
+      {
+       reason="";
+       if(!or_data.valid || atr<=0.0)
         {
          reason="invalid_or_or_atr";
          return(REGIME_NO_TRADE);
         }
 
-      double width_ratio=or_data.width/atr;
-      double dist=MathAbs(price-vwap);
-      bool slope_up=(m15_slope>atr*0.05);
-      bool slope_down=(m15_slope<-atr*0.05);
-      bool trend_ctx=(slope_up && m15_long_aligned) || (slope_down && m15_short_aligned);
+       double width_ratio=or_data.width/atr;
+       double dist=MathAbs(price-vwap);
+       bool slope_up=(m15.slope>atr*0.05);
+       bool slope_down=(m15.slope<-atr*0.05);
+       bool trend_ctx=(slope_up && m15.trend_long) || (slope_down && m15.trend_short);
 
       if(width_ratio<0.25)
         {

@@ -5,6 +5,7 @@
 #include <XAUDailyFlow/Types.mqh>
 #include <XAUDailyFlow/SymbolSpecs.mqh>
 #include <XAUDailyFlow/TimeWindows.mqh>
+#include <XAUDailyFlow/SessionState.mqh>
 #include <XAUDailyFlow/BarUtils.mqh>
 #include <XAUDailyFlow/IndicatorEngine.mqh>
 #include <XAUDailyFlow/VWAPEngine.mqh>
@@ -63,6 +64,7 @@ XDFSymbolSpecs g_specs;
 XDFSessionConfig g_london_cfg;
 XDFSessionConfig g_ny_cfg;
 XDFSessionState g_session_state;
+XDFSessionRuntimeState g_runtime_session;
 XDFOpeningRange g_or;
 
 XDFIndicatorEngine g_indicators;
@@ -80,28 +82,25 @@ datetime g_last_m5_bar=0;
 datetime g_last_m1_vwap_bar=0;
 datetime g_last_day_anchor=0;
 datetime g_last_session_start=0;
-XDFSessionId g_prev_session=SESSION_NONE;
-XDFSessionId g_current_session=SESSION_NONE;
 int g_trades_today=0;
-int g_trades_london=0;
-int g_trades_ny=0;
-string g_last_blocker="";
+XDFBlockerInfo g_last_blocker;
 bool g_daily_blocked=false;
 int g_last_score=0;
-int g_last_family=SETUP_NONE;
-XDFManagementPhase g_mgmt_phase=PHASE_INIT;
+int g_last_eligible_family=SETUP_NONE;
+int g_last_selected_family=SETUP_NONE;
+XDFMgmtState g_mgmt_state=MGMT_NONE;
 datetime g_last_position_opened=0;
 bool g_be_moved_for_position=false;
 bool g_tp1_seen_for_position=false;
 
-string XDF_PhaseToString(XDFManagementPhase phase)
+string XDF_MgmtStateToString(XDFMgmtState phase)
   {
-   if(phase==PHASE_INIT) return("INIT");
-   if(phase==PHASE_OPEN) return("OPEN");
-   if(phase==PHASE_TP1_REACHED) return("TP1_REACHED");
-   if(phase==PHASE_BE_ACTIVE) return("BE_ACTIVE");
-   if(phase==PHASE_RUNNER_TRAIL) return("RUNNER_TRAIL");
-   if(phase==PHASE_TIME_EXIT) return("TIME_EXIT");
+   if(phase==MGMT_NONE) return("NONE");
+   if(phase==MGMT_OPEN) return("OPEN");
+   if(phase==MGMT_TP1_ARMED) return("TP1_ARMED");
+   if(phase==MGMT_BE_DONE) return("BE_DONE");
+   if(phase==MGMT_TRAIL_ACTIVE) return("TRAIL_ACTIVE");
+   if(phase==MGMT_TIME_EXIT) return("TIME_EXIT");
    return("COMPLETE");
   }
 
@@ -134,19 +133,12 @@ bool XDF_InNewsBlock(datetime now)
 
 int XDF_TradesInActiveSession()
   {
-   if(g_current_session==SESSION_LONDON)
-      return(g_trades_london);
-   if(g_current_session==SESSION_NEWYORK)
-      return(g_trades_ny);
-   return(0);
+   return(g_runtime_session.session_trade_count);
   }
 
 void XDF_IncSessionTrades()
   {
-   if(g_current_session==SESSION_LONDON)
-      g_trades_london++;
-   else if(g_current_session==SESSION_NEWYORK)
-      g_trades_ny++;
+   g_runtime_session.session_trade_count++;
   }
 
 void XDF_ResetDayCounters(datetime now)
@@ -154,14 +146,13 @@ void XDF_ResetDayCounters(datetime now)
    datetime anchor=XDF_DayAnchor(now);
    if(anchor!=g_last_day_anchor)
      {
-      g_last_day_anchor=anchor;
-      g_trades_today=0;
-      g_trades_london=0;
-      g_trades_ny=0;
-      g_daily_blocked=false;
-      g_risk.StartDay(AccountInfoDouble(ACCOUNT_EQUITY));
-      g_diag.Log("NEW_DAY",TimeToString(anchor,TIME_DATE));
-     }
+       g_last_day_anchor=anchor;
+       g_trades_today=0;
+       g_daily_blocked=false;
+       g_risk.StartDay(AccountInfoDouble(ACCOUNT_EQUITY));
+       XDF_ResetForNewDay(g_runtime_session,anchor);
+       g_diag.Log("NEW_DAY",TimeToString(anchor,TIME_DATE));
+      }
   }
 
 bool XDF_ScorePasses(XDFRegime regime,int score)
@@ -178,11 +169,7 @@ void XDF_RefreshSessionState(datetime now)
    XDFSessionState computed;
    XDF_InitSessionState(computed);
    XDFSessionId sid=XDF_ActiveSession(now,g_london_cfg,g_ny_cfg,computed);
-   g_current_session=sid;
-
-   bool same_session=(sid!=SESSION_NONE && g_prev_session==sid &&
-                      g_session_state.session_start==computed.session_start &&
-                      g_session_state.day_anchor==computed.day_anchor);
+   bool same_session=XDF_IsSameActiveSession(g_runtime_session,sid,computed);
 
    if(!same_session)
      {
@@ -193,6 +180,7 @@ void XDF_RefreshSessionState(datetime now)
       g_session_state.trade_end=computed.trade_end;
       g_session_state.active=computed.active;
       g_session_state.or_complete=computed.or_complete;
+      XDF_ResetForNewSession(g_runtime_session,sid,computed);
       if(sid!=SESSION_NONE)
          g_diag.Log("SESSION_RESET",StringFormat("session=%s start=%s",XDF_SessionToString((int)sid),TimeToString(computed.session_start,TIME_DATE|TIME_MINUTES)));
      }
@@ -204,35 +192,9 @@ void XDF_RefreshSessionState(datetime now)
       g_session_state.trade_end=computed.trade_end;
       g_session_state.active=computed.active;
       g_session_state.or_complete=(now>=g_session_state.or_end);
+      g_runtime_session.or_complete=g_session_state.or_complete;
      }
-
-   g_prev_session=sid;
-  }
-
-bool XDF_BasicExecutionChecks(const XDFSignal &sig,string &reason)
-  {
-   reason="";
-   if(sig.stop<=0.0)
-     {
-      reason="Invalid stop";
-      return(false);
-     }
-
-   double min_dist=g_specs.stops_level_points*g_specs.point;
-   if(min_dist>0.0)
-     {
-      if(sig.direction>0 && (sig.entry-sig.stop)<min_dist)
-        {
-         reason="Stop level constraint";
-         return(false);
-        }
-      if(sig.direction<0 && (sig.stop-sig.entry)<min_dist)
-        {
-         reason="Stop level constraint";
-         return(false);
-        }
-     }
-   return(true);
+   g_runtime_session.current_session=sid;
   }
 
 void XDF_ManageOpenPosition(double atr)
@@ -246,8 +208,8 @@ void XDF_ManageOpenPosition(double atr)
       g_last_position_opened=ps.opened_at;
       g_be_moved_for_position=false;
       g_tp1_seen_for_position=false;
-      g_mgmt_phase=PHASE_OPEN;
-      g_diag.Log("MGMT_PHASE","OPEN");
+      g_mgmt_state=MGMT_OPEN;
+      g_diag.Log("MGMT_PHASE","MGMT_OPEN");
      }
 
    double bid=SymbolInfoDouble(g_symbol,SYMBOL_BID);
@@ -257,11 +219,11 @@ void XDF_ManageOpenPosition(double atr)
    if(!g_tp1_seen_for_position && risk>0.0 && move>=(risk*1.0))
      {
       g_tp1_seen_for_position=true;
-      g_mgmt_phase=PHASE_TP1_REACHED;
-      g_diag.Log("MGMT_PHASE","TP1_REACHED");
+      g_mgmt_state=MGMT_TP1_ARMED;
+      g_diag.Log("MGMT_PHASE","MGMT_TP1_ARMED");
      }
 
-   if(!g_be_moved_for_position && g_pm.ShouldMoveBE(ps,bid,ask,1.0,g_specs.point))
+   if(g_pm.CanMoveToBreakeven(ps,bid,ask,1.0,g_specs.point,g_be_moved_for_position))
      {
       double be=ps.entry;
       string mod_diag;
@@ -270,8 +232,8 @@ void XDF_ManageOpenPosition(double atr)
          if(g_exec.ModifySLTP(g_symbol,ps.stop,NormalizeDouble(be,g_specs.digits),ps.take_profit,g_specs.point,mod_diag))
            {
             g_be_moved_for_position=true;
-            g_mgmt_phase=PHASE_BE_ACTIVE;
-            g_diag.Log("MGMT_PHASE","BE_ACTIVE");
+            g_mgmt_state=MGMT_BE_DONE;
+            g_diag.Log("MGMT_PHASE","MGMT_BE_DONE");
            }
           g_diag.Log("BE_MOVE",mod_diag);
         }
@@ -280,23 +242,23 @@ void XDF_ManageOpenPosition(double atr)
          if(g_exec.ModifySLTP(g_symbol,ps.stop,NormalizeDouble(be,g_specs.digits),ps.take_profit,g_specs.point,mod_diag))
            {
             g_be_moved_for_position=true;
-            g_mgmt_phase=PHASE_BE_ACTIVE;
-            g_diag.Log("MGMT_PHASE","BE_ACTIVE");
+            g_mgmt_state=MGMT_BE_DONE;
+            g_diag.Log("MGMT_PHASE","MGMT_BE_DONE");
            }
           g_diag.Log("BE_MOVE",mod_diag);
         }
      }
 
-   if(g_pm.IsTimedOut(ps,InpMaxHoldMinutes))
+   if(g_pm.ShouldTimeExit(ps,InpMaxHoldMinutes))
      {
       CTrade t;
-      g_mgmt_phase=PHASE_TIME_EXIT;
+      g_mgmt_state=MGMT_TIME_EXIT;
       g_diag.Log("EXIT_TIMEOUT","Closed due to max hold minutes");
-      g_diag.Log("MGMT_PHASE","TIME_EXIT");
+      g_diag.Log("MGMT_PHASE","MGMT_TIME_EXIT");
       if(t.PositionClose(g_symbol))
         {
-         g_mgmt_phase=PHASE_COMPLETE;
-         g_diag.Log("MGMT_PHASE","COMPLETE");
+         g_mgmt_state=MGMT_COMPLETE;
+         g_diag.Log("MGMT_PHASE","MGMT_COMPLETE");
         }
       return;
      }
@@ -308,21 +270,10 @@ void XDF_ManageOpenPosition(double atr)
    if(atr<=0.0)
       return;
 
-   double trail_dist=atr*0.8;
-   double new_sl=ps.stop;
    double min_step=MathMax(g_specs.point*10.0,atr*0.1);
-   if(ps.direction>0)
-     {
-      double candidate=bid-trail_dist;
-      if(candidate>ps.stop+min_step)
-         new_sl=candidate;
-     }
-   else
-     {
-      double candidate=ask+trail_dist;
-      if(candidate<ps.stop-min_step)
-         new_sl=candidate;
-     }
+   double new_sl=ps.stop;
+   if(!g_pm.CanAdvanceTrail(ps,bid,ask,atr,g_specs.point,min_step,new_sl))
+      return;
 
    double old_norm=NormalizeDouble(ps.stop,g_specs.digits);
    double new_norm=NormalizeDouble(new_sl,g_specs.digits);
@@ -330,7 +281,7 @@ void XDF_ManageOpenPosition(double atr)
       {
        string mod_diag;
        if(g_exec.ModifySLTP(g_symbol,ps.stop,new_norm,ps.take_profit,g_specs.point,mod_diag))
-          g_mgmt_phase=PHASE_RUNNER_TRAIL;
+          g_mgmt_state=MGMT_TRAIL_ACTIVE;
        g_diag.Log("TRAIL_UPDATE",mod_diag);
       }
   }
@@ -375,9 +326,12 @@ int OnInit()
     g_diag.Init(InpEnableFileLogging);
     g_risk.StartDay(AccountInfoDouble(ACCOUNT_EQUITY));
     ZeroMemory(g_counters);
+    XDF_InitRuntimeSessionState(g_runtime_session);
+    g_last_blocker.code=BLOCKER_NONE;
+    g_last_blocker.message="NONE";
 
-    g_diag.Log("INIT",StringFormat("symbol=%s resolvedSymbol=%s digits=%d minLot=%.2f serverTime=%s",InpSymbol,g_symbol,g_specs.digits,g_specs.min_lot,TimeToString(TimeCurrent(),TIME_DATE|TIME_SECONDS)));
-    g_diag.Log("SESSIONS",StringFormat("brokerTime windows London %02d:%02d OR=%d Trade=%d | NewYork %02d:%02d OR=%d Trade=%d",
+    g_diag.Log("INIT",StringFormat("resolvedSymbol=%s configuredSymbol=%s digits=%d minLot=%.2f serverTime=%s",g_symbol,InpSymbol,g_specs.digits,g_specs.min_lot,TimeToString(TimeCurrent(),TIME_DATE|TIME_SECONDS)));
+    g_diag.Log("SESSIONS",StringFormat("London %02d:%02d OR=%d tradeWindow=%d | NewYork %02d:%02d OR=%d tradeWindow=%d",
                                         InpLondonStartHour,InpLondonStartMinute,InpLondonORMinutes,InpLondonTradeMinutes,
                                         InpNYStartHour,InpNYStartMinute,InpNYORMinutes,InpNYTradeMinutes));
    return(INIT_SUCCEEDED);
@@ -399,13 +353,15 @@ void OnTick()
    if(g_risk.DailyLossHit(AccountInfoDouble(ACCOUNT_EQUITY),InpMaxDailyLossPct))
      {
       g_daily_blocked=true;
-      g_last_blocker="Daily loss cap";
+      g_last_blocker.code=BLOCKER_DAILY_LIMIT;
+      g_last_blocker.message="daily loss cap";
      }
 
    if(InpEnableDailyProfitLock && g_risk.DailyProfitLockHit(AccountInfoDouble(ACCOUNT_EQUITY),InpDailyProfitLockR,InpRiskPct))
      {
       g_daily_blocked=true;
-      g_last_blocker="Daily profit lock";
+      g_last_blocker.code=BLOCKER_DAILY_LIMIT;
+      g_last_blocker.message="daily profit lock";
      }
 
    XDFPositionState ps;
@@ -416,33 +372,40 @@ void OnTick()
       XDF_ManageOpenPosition(atr);
 
    XDF_RefreshSessionState(now);
+   XDFSessionId current_session=g_runtime_session.current_session;
 
-    if(g_current_session==SESSION_NONE)
+    if(current_session==SESSION_NONE)
       {
-       g_last_blocker="Out of session";
-       XDF_UpdatePanel(g_symbol,g_current_session,false,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_SESSION_CLOSED;
+       g_last_blocker.message="session closed";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,false,g_or,0.0,SETUP_NONE,SETUP_NONE,g_last_score,g_last_blocker.message,XDF_CurrentSpreadPoints(),"n/a",has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
     if(XDF_InNewsBlock(now))
       {
-       g_last_blocker="News block window";
-       XDF_UpdatePanel(g_symbol,g_current_session,false,g_or,0.0,REGIME_NO_TRADE,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_SESSION_CLOSED;
+       g_last_blocker.message="news block window";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,false,g_or,0.0,SETUP_NONE,SETUP_NONE,g_last_score,g_last_blocker.message,XDF_CurrentSpreadPoints(),"n/a",has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
     if(!g_session_state.or_complete)
       {
-       g_last_blocker="Building opening range";
-       XDF_UpdatePanel(g_symbol,g_current_session,false,g_or,0.0,REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_SESSION_CLOSED;
+       g_last_blocker.message="building opening range";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,false,g_or,0.0,SETUP_NONE,SETUP_NONE,g_last_score,g_last_blocker.message,XDF_CurrentSpreadPoints(),"n/a",has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
-   if(!g_or_engine.Build(g_session_state.session_start,g_session_state.or_end,g_or))
+   string or_diag;
+   if(!g_or_engine.XDF_BuildExactOpeningRange(g_session_state.session_start,g_session_state.or_end,g_or,or_diag))
      {
-      g_last_blocker="OR unavailable";
+      g_last_blocker.code=BLOCKER_SESSION_CLOSED;
+      g_last_blocker.message="OR unavailable";
       return;
      }
+   g_diag.Log("OR_BUILD",or_diag);
 
    if(g_session_state.session_start!=g_last_session_start)
      {
@@ -457,7 +420,8 @@ void OnTick()
 
     if(!XDF_NewBar(g_symbol,PERIOD_M5,g_last_m5_bar))
       {
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),REGIME_MIXED,g_last_family,g_last_score,g_last_blocker,XDF_CurrentSpreadPoints(),has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       string m15_summary="pending";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,XDF_CurrentSpreadPoints(),m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
@@ -466,8 +430,9 @@ void OnTick()
    MqlRates m5[3];
    ArraySetAsSeries(m5,true);
    CopyRates(g_symbol,PERIOD_M5,0,3,m5);
-   if(m5[1].high>g_or.high) g_session_state.touched_above=true;
-   if(m5[1].low<g_or.low) g_session_state.touched_below=true;
+   XDF_UpdateSessionTouches(g_runtime_session,m5[1].high,m5[1].low,g_or);
+   g_session_state.touched_above=g_runtime_session.touched_above;
+   g_session_state.touched_below=g_runtime_session.touched_below;
 
    double bid=SymbolInfoDouble(g_symbol,SYMBOL_BID);
    double ask=SymbolInfoDouble(g_symbol,SYMBOL_ASK);
@@ -475,88 +440,86 @@ void OnTick()
    double spread_pts=XDF_CurrentSpreadPoints();
    double vwap_dist_pts=g_vwap.DistanceInPoints(mid,g_specs.point);
 
-   double m15_slope=g_indicators.M15Slope();
-   bool m15_long=g_indicators.M15EMAAligned(true);
-   bool m15_short=g_indicators.M15EMAAligned(false);
-    string regime_reason;
-     XDFRegime regime=g_decision.EvaluateRegime(g_or,atr,g_vwap.Value(),mid,g_session_state.touched_above && g_session_state.touched_below,m15_slope,m15_long,m15_short,regime_reason);
-    g_diag.Log("REGIME",StringFormat("regime=%s reason=%s bothSides=%s m15Slope=%.4f m15Long=%s m15Short=%s",
-                                     XDF_RegimeToString((int)regime),regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",
-                                     m15_slope,(m15_long?"Y":"N"),(m15_short?"Y":"N")));
+   XDFM15Context m15_ctx=g_indicators.BuildM15Context(mid);
+   string m15_summary=StringFormat("al=%d slope=%.4f str=%.3f atr=%.2f",m15_ctx.trend_alignment,m15_ctx.slope,m15_ctx.slope_strength,m15_ctx.atr);
+   XDFDecisionContext ctx;
+   ZeroMemory(ctx);
+   ctx.symbol=g_symbol;
+   ctx.or_data=g_or;
+   ctx.session=g_session_state;
+   ctx.m15=m15_ctx;
+   ctx.vwap=g_vwap.Value();
+   ctx.mid_price=mid;
+   ctx.atr_m5=atr;
+   ctx.spread_points=spread_pts;
+   ctx.max_spread_points=InpMaxSpreadPoints;
+   ctx.min_atr=InpMinATR;
+   ctx.max_vwap_distance_points=InpMaxVWAPDistancePoints;
+   ctx.point=g_specs.point;
+   ctx.allow_trade=true;
 
-     string reject_reason;
-     double atr_points=(g_specs.point>0.0 ? atr/g_specs.point : 0.0);
-     double recent_range_price=(m5[1].high-m5[1].low);
-     double or_width_points=(g_specs.point>0.0 ? g_or.width/g_specs.point : 0.0);
-     if(!g_decision.EvaluateBlockers(g_filter,spread_pts,InpMaxSpreadPoints,atr,InpMinATR,atr_points,vwap_dist_pts,InpMaxVWAPDistancePoints,recent_range_price,or_width_points,reject_reason))
+   XDFDecision decision;
+   bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
+   g_last_eligible_family=(int)decision.eligible_family;
+   g_last_selected_family=(int)decision.selected_family;
+   g_last_score=decision.selected_score.total;
+   g_last_blocker=decision.blocker;
+   g_diag.Log("REGIME",StringFormat("regime=%s reason=%s bothSides=%s m15=%s",
+                                    XDF_RegimeToString((int)decision.regime),decision.regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",m15_summary));
+   if(!decision_ok)
       {
        g_counters.setups_rejected++;
-       if(reject_reason==g_filter.ReasonSpreadTooHigh()) g_counters.blocked_spread++;
-       g_last_blocker=reject_reason;
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s orbEligible=%s orbScore=%d mrEligible=%s mrScore=%d selected=%d",
+                                             XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
+                                             (decision.orb_signal.valid?"Y":"N"),decision.orb_score.total,
+                                             (decision.mr_signal.valid?"Y":"N"),decision.mr_score.total,
+                                             (int)decision.selected_family));
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
-    double min_stop_distance=MathMax((double)g_specs.stops_level_points*g_specs.point,g_specs.point*5.0);
-    XDFSignal orb;
-    XDFSignal mr;
-    g_decision.EvaluateSignals(g_symbol,g_or,g_vwap.Value(),atr,g_indicators.EMAAligned(true),g_indicators.EMAAligned(false),min_stop_distance,orb,mr);
-
-    XDFSignal chosen=g_decision.ChooseSignal(orb,mr,regime);
-
-    g_last_family=(int)chosen.family;
-    if(!chosen.valid)
-      {
-       g_last_blocker="BLOCK_REGIME_OR_TRIGGER_MISMATCH";
-       g_diag.Log("SETUP_REJECT",StringFormat("family=%d cause=regime_or_trigger_mismatch",(int)chosen.family));
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
-       return;
-      }
-
-    XDFScoreBreakdown score=g_decision.EvaluateScore(chosen,g_or,atr,spread_pts,vwap_dist_pts,regime);
-    g_last_score=score.total;
+   XDFSignal chosen=decision.selected_signal;
+   XDFScoreBreakdown score=decision.selected_score;
     g_counters.setups_scored++;
     g_diag.Log("SCORE",StringFormat("range=%d context=%d trigger=%d exec=%d vwap=%d noise=%d total=%d family=%d",
                                     score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,
                                     score.vwap_quality,score.noise_penalty,score.total,(int)chosen.family));
+   if(decision.orb_signal.valid && decision.mr_signal.valid)
+      g_diag.Log("FAMILY_SELECT",StringFormat("bothEligible=Y orbScore=%d mrScore=%d selected=%d",decision.orb_score.total,decision.mr_score.total,(int)decision.selected_family));
 
-   if(!XDF_ScorePasses(regime,score.total))
+   if(!XDF_ScorePasses(decision.regime,score.total))
       {
        g_counters.setups_rejected++;
        g_counters.blocked_score++;
-       g_last_blocker="BLOCK_SCORE_BELOW_THRESHOLD";
+       g_last_blocker.code=BLOCKER_SCORE;
+       g_last_blocker.message="score below threshold";
        g_diag.Log("SETUP_REJECT",StringFormat("family=%d cause=score range=%d context=%d trigger=%d exec=%d vwap=%d noise=%d total=%d",
                                               (int)chosen.family,score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,score.vwap_quality,score.noise_penalty,score.total));
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
     if(g_daily_blocked)
       {
-       g_last_blocker="BLOCK_DAILY_GUARD_ACTIVE";
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_DAILY_LIMIT;
+       g_last_blocker.message="daily risk lock active";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
     if(has_pos)
       {
-       g_last_blocker="BLOCK_EXISTING_POSITION";
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_EXISTING_POSITION;
+       g_last_blocker.message="existing position open";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
     if(g_trades_today>=InpMaxTradesPerDay || XDF_TradesInActiveSession()>=InpMaxTradesPerSession)
       {
-       g_last_blocker="BLOCK_TRADE_COUNT_LIMIT";
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
-       return;
-      }
-
-   string exec_reason;
-    if(!XDF_BasicExecutionChecks(chosen,exec_reason))
-      {
-       g_last_blocker=exec_reason;
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_SESSION_LIMIT;
+       g_last_blocker.message="trade count limit";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
@@ -566,29 +529,34 @@ void OnTick()
     if(lot_blocked || lots<=0.0)
       {
        g_counters.blocked_risk++;
-       g_last_blocker="BLOCK_RISKMODEL_LOT";
-       XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+       g_last_blocker.code=BLOCKER_VOLUME;
+       g_last_blocker.message="risk model lot blocked";
+       XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
        return;
       }
 
-    string exec_diag;
-     bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,InpMaxSpreadPoints,(int)regime,score.total,exec_diag);
-    g_diag.Log("ORDER_ATTEMPT",exec_diag);
+   string exec_diag;
+     bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,InpMaxSpreadPoints,(current_session!=SESSION_NONE),has_pos,(int)decision.regime,score.total,exec_diag);
+   g_diag.Log("ORDER_ATTEMPT",exec_diag);
    if(ok)
      {
       g_trades_today++;
       XDF_IncSessionTrades();
       g_counters.trades_placed++;
       g_counters.setups_accepted++;
-      g_last_blocker="TRADE PLACED";
+      g_last_blocker.code=BLOCKER_NONE;
+      g_last_blocker.message="trade placed";
       g_diag.Log("TRADE",StringFormat("%s score=%d lots=%.2f reason=%s",(chosen.direction>0?"BUY":"SELL"),score.total,lots,chosen.reason));
-      g_mgmt_phase=PHASE_OPEN;
+      g_runtime_session.last_setup_family=chosen.family;
+      g_runtime_session.last_direction=chosen.direction;
+      g_mgmt_state=MGMT_OPEN;
      }
    else
      {
-      g_last_blocker="Order placement failed";
+      g_last_blocker.code=BLOCKER_EXECUTION_PREFLIGHT;
+      g_last_blocker.message="order placement failed";
       g_diag.Log("ORDER_FAIL","Order request failed");
      }
 
-    XDF_UpdatePanel(g_symbol,g_current_session,g_or.valid,g_or,g_vwap.Value(),regime,g_last_family,g_last_score,g_last_blocker,spread_pts,has_pos,XDF_DailyPLPct(),g_daily_blocked,XDF_PhaseToString(g_mgmt_phase));
+    XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
   }

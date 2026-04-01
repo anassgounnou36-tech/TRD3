@@ -6,8 +6,8 @@
 class XDFSetupScorer
   {
 public:
-   XDFScoreBreakdown Score(const XDFSignal &signal,const XDFOpeningRange &or_data,double atr,double spread_points,double vwap_dist_points,XDFRegime regime)
-     {
+   XDFScoreBreakdown Score(const XDFSignal &signal,const XDFOpeningRange &or_data,double atr,double spread_points,double vwap_dist_points,XDFRegime regime,const XDFM15Context &m15)
+      {
       XDFScoreBreakdown out;
       ZeroMemory(out);
 
@@ -20,6 +20,13 @@ public:
       else out.range_quality=8;
 
       out.context_quality=(regime==REGIME_NO_TRADE ? 0 : (regime==REGIME_MIXED ? 12 : 20));
+      if(m15.slope_strength>=0.12) out.context_quality+=2;
+      else if(m15.slope_strength<0.03) out.context_quality-=3;
+      if(signal.direction>0 && m15.trend_long) out.context_quality+=2;
+      if(signal.direction<0 && m15.trend_short) out.context_quality+=2;
+      if(signal.direction>0 && m15.trend_short) out.context_quality-=3;
+      if(signal.direction<0 && m15.trend_long) out.context_quality-=3;
+      if(out.context_quality<0) out.context_quality=0;
 
       if(signal.trigger_body_ratio>=0.60) out.trigger_quality=22;
       else if(signal.trigger_body_ratio>=0.45) out.trigger_quality=16;

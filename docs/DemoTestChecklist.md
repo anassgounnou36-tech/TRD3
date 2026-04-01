@@ -4,6 +4,7 @@
 - [ ] Verify symbol auto-resolution selects GOLD/XAU alias
 - [ ] Validate panel shows OR, VWAP, regime, setup score, blocker reason
 - [ ] Validate panel shows active session, OR-built status, setup candidate family, position state, and daily kill-switch status
+- [ ] Validate panel also shows server time, OR width, eligible family, selected family, M15 context summary, and management state
 - [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
 - [ ] Confirm no trading outside London/NY windows
 - [ ] Confirm init logs print configured London/NY windows (broker-server dependent)
@@ -12,17 +13,23 @@
 - [ ] Confirm no overnight holds (timeout exits)
 - [ ] Confirm spread/vwap-distance filters block noisy conditions
 - [ ] Confirm adaptive filter behavior (ATR-relative spread/VWAP and compression dead-session block)
+- [ ] Confirm adaptive filter behavior uses contextual ratios first and fixed thresholds only as safety caps
 - [ ] Confirm regime logs include explicit reason summary
 - [ ] Confirm score logs include full breakdown readability
+- [ ] Confirm near-threshold setup rejections include full score breakdown
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
+- [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
 - [ ] Confirm order post-send logs include retcode + description + order/deal tickets
 - [ ] Confirm SL modify logs include old/new SL, delta, retcode details
 - [ ] Confirm modify logs clearly state when modify is skipped and why
 - [ ] Confirm execution preflight failures are categorized (invalid symbol/volume/stop/spread/tradable/send/modify)
+- [ ] Confirm blocker log includes both blocker enum and human-readable reason
 - [ ] Confirm InpSizeFromEquity=true sizes from equity
 - [ ] Confirm InpSizeFromEquity=false sizes from balance
 - [ ] Run XAUDailyFlow_BarAudit with bar-count mode and inspect strategy-aware output
 - [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
 - [ ] Confirm BarAudit and EA share same strategy decision path (regime/signal/scoring/blockers)
+- [ ] Confirm OR debug logs show exact OR bar count and deterministic boundary handling
 - [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
+- [ ] Confirm management state transitions use MGMT_* state-machine semantics
 - [ ] Confirm no `test.txt` artifact remains in repository

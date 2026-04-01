@@ -16,15 +16,34 @@ enum XDFSetupFamily
    SETUP_MEAN_REVERSION   = 2
   };
 
-enum XDFManagementPhase
+enum XDFMgmtState
   {
-   PHASE_INIT         = 0,
-   PHASE_OPEN         = 1,
-   PHASE_TP1_REACHED  = 2,
-   PHASE_BE_ACTIVE    = 3,
-   PHASE_RUNNER_TRAIL = 4,
-   PHASE_TIME_EXIT    = 5,
-   PHASE_COMPLETE     = 6
+   MGMT_NONE         = 0,
+   MGMT_OPEN         = 1,
+   MGMT_TP1_ARMED    = 2,
+   MGMT_BE_DONE      = 3,
+   MGMT_TRAIL_ACTIVE = 4,
+   MGMT_TIME_EXIT    = 5,
+   MGMT_COMPLETE     = 6
+  };
+
+enum XDFBlocker
+  {
+   BLOCKER_NONE                = 0,
+   BLOCKER_SPREAD              = 1,
+   BLOCKER_ATR                 = 2,
+   BLOCKER_OR_TOO_NARROW       = 3,
+   BLOCKER_OR_TOO_WIDE         = 4,
+   BLOCKER_VWAP_EXTENSION      = 5,
+   BLOCKER_REGIME              = 6,
+   BLOCKER_BIAS                = 7,
+   BLOCKER_SCORE               = 8,
+   BLOCKER_DAILY_LIMIT         = 9,
+   BLOCKER_SESSION_LIMIT       = 10,
+   BLOCKER_EXISTING_POSITION   = 11,
+   BLOCKER_VOLUME              = 12,
+   BLOCKER_EXECUTION_PREFLIGHT = 13,
+   BLOCKER_SESSION_CLOSED      = 14
   };
 
 enum XDFSessionId
@@ -89,6 +108,59 @@ struct XDFScoreBreakdown
    int               vwap_quality;
    int               noise_penalty;
    int               total;
+  };
+
+struct XDFM15Context
+  {
+   double            fast_ema;
+   double            slow_ema;
+   double            slope;
+   double            atr;
+   bool              trend_long;
+   bool              trend_short;
+   int               trend_alignment; // +1 long / -1 short / 0 neutral
+   double            slope_strength;  // |slope| normalized by atr
+   double            price_vs_fast;   // price-fast
+  };
+
+struct XDFBlockerInfo
+  {
+   XDFBlocker        code;
+   string            message;
+  };
+
+struct XDFDecisionContext
+  {
+   string            symbol;
+   XDFOpeningRange   or_data;
+   XDFSessionState   session;
+   XDFM15Context     m15;
+   double            vwap;
+   double            mid_price;
+   double            atr_m5;
+   double            spread_points;
+   double            max_spread_points;
+   double            min_atr;
+   double            max_vwap_distance_points;
+   double            point;
+   bool              allow_trade;
+  };
+
+struct XDFDecision
+  {
+   bool              has_setup;
+   bool              allow_trade;
+   XDFRegime         regime;
+   string            regime_reason;
+   XDFSignal         orb_signal;
+   XDFSignal         mr_signal;
+   XDFSignal         selected_signal;
+   XDFScoreBreakdown selected_score;
+   XDFScoreBreakdown orb_score;
+   XDFScoreBreakdown mr_score;
+   XDFSetupFamily    eligible_family;
+   XDFSetupFamily    selected_family;
+   XDFBlockerInfo    blocker;
   };
 
 struct XDFSymbolSpecs

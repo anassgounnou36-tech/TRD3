@@ -18,6 +18,12 @@ struct XDFNormalizedTradeRequest
    int regime;
    int score;
    string family;
+   int deviation;
+   long trade_mode;
+   ENUM_ORDER_TYPE_FILLING filling_mode;
+   double volume_min;
+   double volume_max;
+   double volume_step;
   };
 
 class XDFExecutionEngine
@@ -99,6 +105,12 @@ public:
       out.regime=regime;
       out.score=score;
       out.family=FamilyLabel((int)signal.family);
+      out.deviation=m_deviation;
+      SymbolInfoInteger(symbol,SYMBOL_TRADE_MODE,out.trade_mode);
+      out.filling_mode=ResolveFilling(symbol);
+      SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN,out.volume_min);
+      SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX,out.volume_max);
+      SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP,out.volume_step);
       if(out.entry<=0.0 || out.stop<=0.0)
         {
          reason="invalid_request_prices";
@@ -112,12 +124,24 @@ public:
       return(true);
      }
 
-   bool ValidatePreflight(const XDFNormalizedTradeRequest &req,double max_spread_points,string &category,string &reason,MqlTradeCheckResult &check_result,string &check_diag) const
+   bool ValidatePreflight(const XDFNormalizedTradeRequest &req,double max_spread_points,bool session_active,bool duplicate_position,string &category,string &reason,MqlTradeCheckResult &check_result,string &check_diag) const
      {
       category="";
       reason="";
       check_diag="";
       ZeroMemory(check_result);
+      if(!session_active)
+        {
+         category="market not tradable";
+         reason="session not active";
+         return(false);
+        }
+      if(duplicate_position)
+        {
+         category="order send failed";
+         reason="duplicate position not allowed";
+         return(false);
+        }
       if(req.symbol=="")
         {
          category="invalid symbol";
@@ -160,23 +184,19 @@ public:
          return(false);
         }
 
-      double min_vol=0.0,max_vol=0.0,vol_step=0.0;
-      SymbolInfoDouble(req.symbol,SYMBOL_VOLUME_MIN,min_vol);
-      SymbolInfoDouble(req.symbol,SYMBOL_VOLUME_MAX,max_vol);
-      SymbolInfoDouble(req.symbol,SYMBOL_VOLUME_STEP,vol_step);
-      if(req.lots<min_vol || req.lots>max_vol)
+       if(req.lots<req.volume_min || req.lots>req.volume_max)
+         {
+          category="invalid volume";
+          reason=StringFormat("lots %.2f outside [%.2f, %.2f]",req.lots,req.volume_min,req.volume_max);
+          return(false);
+         }
+      if(req.volume_step>0.0)
         {
-         category="invalid volume";
-         reason=StringFormat("lots %.2f outside [%.2f, %.2f]",req.lots,min_vol,max_vol);
-         return(false);
-        }
-      if(vol_step>0.0)
-        {
-         double steps=req.lots/vol_step;
+         double steps=req.lots/req.volume_step;
          if(MathAbs(steps-MathRound(steps))>1e-6)
            {
             category="invalid volume";
-            reason=StringFormat("lots %.2f not aligned to step %.2f",req.lots,vol_step);
+            reason=StringFormat("lots %.2f not aligned to step %.2f",req.lots,req.volume_step);
             return(false);
            }
         }
@@ -209,9 +229,9 @@ public:
       check_req.price=req.entry;
       check_req.sl=req.stop;
       check_req.tp=req.tp;
-      check_req.deviation=m_deviation;
+      check_req.deviation=req.deviation;
       check_req.magic=0;
-      check_req.type_filling=ResolveFilling(req.symbol);
+      check_req.type_filling=req.filling_mode;
       check_req.type_time=ORDER_TIME_GTC;
       if(OrderCheck(check_req,check_result))
         {
@@ -236,7 +256,7 @@ public:
       return(true);
      }
 
-   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,double max_spread_points,int regime,int score,string &diag)
+   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,double max_spread_points,bool session_active,bool duplicate_position,int regime,int score,string &diag)
       {
        diag="";
        XDFNormalizedTradeRequest req;
@@ -251,15 +271,15 @@ public:
        MqlTradeCheckResult check_result;
        string check_diag;
        string fail_category,fail_reason;
-       if(!ValidatePreflight(req,max_spread_points,fail_category,fail_reason,check_result,check_diag))
+       if(!ValidatePreflight(req,max_spread_points,session_active,duplicate_position,fail_category,fail_reason,check_result,check_diag))
         {
-         diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f regime=%s score=%d deviation=%d preflight=FAIL category=%s reason=%s %s",
-                           req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,RegimeLabel(req.regime),req.score,m_deviation,fail_category,fail_reason,check_diag);
+         diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=FAIL category=%s reason=%s %s",
+                           req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,fail_category,fail_reason,check_diag);
          return(false);
         }
 
-       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f regime=%s score=%d deviation=%d preflight=OK %s",
-                         req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,RegimeLabel(req.regime),req.score,m_deviation,check_diag);
+       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=OK %s",
+                         req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,check_diag);
 
        bool ok=false;
        if(req.direction>0)

@@ -41,7 +41,20 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Panel transparency improved with OR-built status, setup candidate, score, blocker reason, and position-state visibility.
 - Init logs now explicitly print resolved symbol, server time, and configured London/New York windows for broker-time validation.
 
+## v1.4 final hardening pass
+
+- Opening range construction is now exact and deterministic via explicit M1 shift iteration (session start inclusive, OR end exclusive), with OR debug traces.
+- EA and BarAudit both use one shared decision entrypoint (`XDF_EvaluateDecision`) to remove audit/live decision drift.
+- Session persistence is explicit via runtime session-state helpers (new-day/new-session reset, touch updates, same-session checks).
+- M15 context is first-class (fast EMA, slow EMA, slope, ATR, alignment, slope strength, price-vs-fast) and consumed by regime/scoring.
+- Filters prioritize contextual relationships (spread/ATR/session behavior, VWAP/ATR/OR width, OR-width extremes, compression/chop context) with fixed limits as safety caps.
+- Blockers use stable categories and consistent enum+message diagnostics across logs/panel.
+- Execution preflight captures normalized request snapshots (trade mode/fill mode/volume constraints/deviation) and classifies failures before send.
+- Position management is state-driven (`MGMT_NONE`, `MGMT_OPEN`, `MGMT_TP1_ARMED`, `MGMT_BE_DONE`, `MGMT_TRAIL_ACTIVE`, `MGMT_TIME_EXIT`, `MGMT_COMPLETE`) with calmer transition logging.
+- Dashboard panel expanded to include server time, OR width, eligible/selected families, M15 context summary, management state, and daily lock state.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.
 - Defaults are calibrated for XM-style London/NY server-time windows and should be adjusted if broker server offset differs.
+- Always validate session alignment on your broker/XM server (including DST changes) before trusting default windows.
