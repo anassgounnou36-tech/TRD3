@@ -73,6 +73,7 @@ bool XDF_BuildDecisionContext(const string symbol,
    int m5_shift=(live_mode?1:iBarShift(symbol,PERIOD_M5,ts,false)+1);
    if(m5_shift<1) m5_shift=1;
    int m5_count=CopyRates(symbol,PERIOD_M5,m5_shift,6,m5);
+   if(m5_count<0) m5_count=0;
    if(m5_count>=1)
       XDF_UpdateSessionTouches(runtime_state,m5[0].high,m5[0].low,out_or);
    session_state.touched_above=runtime_state.touched_above;

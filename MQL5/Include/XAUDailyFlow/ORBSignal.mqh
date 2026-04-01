@@ -6,6 +6,13 @@
 class XDFORBSignal
   {
 public:
+   double ExtensionPenalty(const double ext,const double atr)
+     {
+      if(atr<=0.0 || ext<=atr*1.3)
+         return(0.0);
+      return((ext-atr*1.3)/atr*8.0);
+     }
+
    bool IsBetter(const XDFSignal &candidate,const XDFSignal &current_best)
      {
       if(!candidate.valid)
@@ -43,54 +50,6 @@ public:
       s.level_hold_quality=level_hold_quality;
       s.extension_penalty=(int)MathRound(extension_penalty);
       return(s);
-     }
-
-   XDFSignal EvaluateFromBar(const MqlRates &b,double entry_long,double entry_short,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
-     {
-      XDFSignal s;
-      ZeroMemory(s);
-      s.family=SETUP_ORB_CONTINUATION;
-      if(!or_data.valid || atr<=0.0)
-         return(s);
-
-      double body=MathAbs(b.close-b.open);
-      double range=b.high-b.low;
-      if(range<=0.0)
-         return(s);
-
-      bool strong=(body/range)>=0.45;
-      if(!strong)
-         return(s);
-
-      if(b.close>or_data.high && b.close>vwap && ema_long_ok && (b.close-or_data.high)<(atr*1.5))
-        {
-         s.valid=true; s.direction=1; s.reason="ORB long continuation";
-         s.entry=entry_long;
-         double base_stop=or_data.low - atr*0.35;
-         s.stop=MathMin(base_stop,s.entry-min_stop_distance);
-         s.tp_hint=s.entry + atr*1.1;
-         s.stop_distance=MathAbs(s.entry-s.stop);
-         s.target_distance=MathAbs(s.tp_hint-s.entry);
-         s.trigger_body_ratio=(range>0.0 ? body/range : 0.0);
-         s.vwap_side_ok=(b.close>vwap);
-         return(s);
-        }
-
-      if(b.close<or_data.low && b.close<vwap && ema_short_ok && (or_data.low-b.close)<(atr*1.5))
-        {
-         s.valid=true; s.direction=-1; s.reason="ORB short continuation";
-         s.entry=entry_short;
-         double base_stop=or_data.high + atr*0.35;
-         s.stop=MathMax(base_stop,s.entry+min_stop_distance);
-         s.tp_hint=s.entry - atr*1.1;
-         s.stop_distance=MathAbs(s.entry-s.stop);
-         s.target_distance=MathAbs(s.tp_hint-s.entry);
-         s.trigger_body_ratio=(range>0.0 ? body/range : 0.0);
-         s.vwap_side_ok=(b.close<vwap);
-         return(s);
-        }
-
-       return(s);
      }
 
    XDFSignal EvaluateAt(const string symbol,
@@ -134,7 +93,7 @@ public:
            {
             double stop=MathMin(or_data.low-atr*0.30,entry_long-min_stop_distance);
             double tp=entry_long+base_tp;
-            candidate=BuildSignal(1,"ORB_DIRECT_BREAKOUT",26,0,18,12,b0,entry_long,stop,tp,vwap,(ext>atr*1.3?(ext-atr*1.3)/atr*8.0:0.0));
+            candidate=BuildSignal(1,"ORB_DIRECT_BREAKOUT",26,0,18,12,b0,entry_long,stop,tp,vwap,ExtensionPenalty(ext,atr));
             if(IsBetter(candidate,best))
                best=candidate;
            }
@@ -146,7 +105,7 @@ public:
            {
             double stop=MathMax(or_data.high+atr*0.30,entry_short+min_stop_distance);
             double tp=entry_short-base_tp;
-            candidate=BuildSignal(-1,"ORB_DIRECT_BREAKOUT",26,0,18,12,b0,entry_short,stop,tp,vwap,(ext>atr*1.3?(ext-atr*1.3)/atr*8.0:0.0));
+            candidate=BuildSignal(-1,"ORB_DIRECT_BREAKOUT",26,0,18,12,b0,entry_short,stop,tp,vwap,ExtensionPenalty(ext,atr));
             if(IsBetter(candidate,best))
                best=candidate;
            }
