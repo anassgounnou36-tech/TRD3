@@ -7,6 +7,7 @@
 #include <XAUDailyFlow/IndicatorEngine.mqh>
 #include <XAUDailyFlow/VWAPEngine.mqh>
 #include <XAUDailyFlow/OpeningRangeEngine.mqh>
+#include <XAUDailyFlow/BarUtils.mqh>
 
 const double XDF_AUDIT_SPREAD_RANGE_FACTOR=0.10;
 
