@@ -81,6 +81,14 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - `BLOCKER_NO_SETUP` remains the dedicated no-signal blocker; no-setup detail now includes family-level invalid reasons.
 - Family-specific VWAP handling is materially wider for ORB than MR in filter path, while MR remains stricter on extension rejection.
 
+## v1.5.2 execution preflight reliability fix
+
+- Execution preflight now treats `OrderCheck()==true` with `retcode=0` as acceptable tester success (diagnosed as `ACCEPT_IN_TESTER`) instead of rejecting valid requests.
+- Added request price sanitization before preflight/send: real entry snapshot (ask/bid), broker stop-distance enforcement, side-safe stop normalization, TP side repair, and symbol-digit normalization.
+- Removed early raw stop-side hard-fail path in favor of sanitize-then-validate behavior (`invalid_stop_side` only if still invalid after repair attempts).
+- Pre-send diagnostics now include raw signal prices, snapped entry, final normalized prices, min stop distance, stop/freeze levels, and explicit OrderCheck outcome details.
+- OrderCheck request now reuses configured EA magic for consistency with actual sends.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

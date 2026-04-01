@@ -9,17 +9,26 @@ struct XDFNormalizedTradeRequest
    string symbol;
    int direction;
    double lots;
+   double raw_entry;
+   double raw_stop;
+   double raw_tp;
+   double snapped_entry;
    double entry;
    double stop;
    double tp;
    double spread_points;
    double stop_distance;
    double target_distance;
+   double min_stop_distance;
    int regime;
    int score;
    string family;
    int deviation;
    long trade_mode;
+   long stops_level_points;
+   long freeze_level_points;
+   int digits;
+   double point;
    ENUM_ORDER_TYPE_FILLING filling_mode;
    double volume_min;
    double volume_max;
@@ -33,7 +42,124 @@ private:
    CTrade m_trade;
    string m_symbol;
    int m_deviation;
+   long m_magic;
    double m_last_spread_points;
+   bool IsAcceptableOrderCheckRetcode(const uint retcode) const
+     {
+      return(retcode==0 || retcode==TRADE_RETCODE_DONE || retcode==TRADE_RETCODE_PLACED);
+     }
+   bool SanitizeRequestPrices(const string symbol,
+                              const int direction,
+                              const double raw_entry,
+                              const double raw_stop,
+                              const double raw_tp,
+                              double &final_entry,
+                              double &final_stop,
+                              double &final_tp,
+                              double &min_stop_distance,
+                              long &stops_level_points,
+                              long &freeze_level_points,
+                              int &digits,
+                              double &point,
+                              string &reason) const
+     {
+      reason="";
+      long symbol_digits=0;
+      if(!SymbolInfoInteger(symbol,SYMBOL_DIGITS,symbol_digits))
+        {
+         reason="invalid_symbol_digits";
+         return(false);
+        }
+      digits=(int)symbol_digits;
+      point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+      if(point<=0.0)
+        {
+         reason="invalid_symbol_point";
+         return(false);
+        }
+      SymbolInfoInteger(symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level_points);
+      SymbolInfoInteger(symbol,SYMBOL_TRADE_FREEZE_LEVEL,freeze_level_points);
+      min_stop_distance=MathMax((double)stops_level_points*point,point*5.0);
+      double snapped=(direction>0 ? SymbolInfoDouble(symbol,SYMBOL_ASK) : SymbolInfoDouble(symbol,SYMBOL_BID));
+      if(snapped<=0.0)
+        {
+         reason="invalid_entry_snapshot";
+         return(false);
+        }
+      final_entry=NormalizeDouble(snapped,digits);
+      final_stop=raw_stop;
+      if(direction>0)
+        {
+         double max_stop=final_entry-min_stop_distance;
+         if(final_stop<=0.0)
+            final_stop=max_stop;
+         else
+            final_stop=MathMin(final_stop,max_stop);
+         final_stop=NormalizeDouble(final_stop,digits);
+         if(!(final_stop<final_entry) || (final_entry-final_stop)<min_stop_distance)
+           {
+            final_stop=NormalizeDouble(final_entry-min_stop_distance,digits);
+            if((final_entry-final_stop)<min_stop_distance)
+               final_stop=NormalizeDouble(final_stop-point,digits);
+           }
+         if(!(final_stop<final_entry) || (final_entry-final_stop)<min_stop_distance)
+           {
+            reason="invalid_stop_side";
+            return(false);
+           }
+         final_tp=raw_tp;
+         if(final_tp<=0.0 || final_tp<=final_entry)
+           {
+            double inferred=MathAbs(raw_tp-raw_entry);
+            double fallback_dist=MathMax(inferred,min_stop_distance);
+            final_tp=final_entry+fallback_dist;
+           }
+         final_tp=NormalizeDouble(final_tp,digits);
+         if(!(final_tp>final_entry))
+            final_tp=NormalizeDouble(final_entry+MathMax(min_stop_distance,point),digits);
+         if(!(final_tp>final_entry))
+           {
+            reason="invalid_tp_side";
+            return(false);
+           }
+        }
+      else
+        {
+         double min_stop=final_entry+min_stop_distance;
+         if(final_stop<=0.0)
+            final_stop=min_stop;
+         else
+            final_stop=MathMax(final_stop,min_stop);
+         final_stop=NormalizeDouble(final_stop,digits);
+         if(!(final_stop>final_entry) || (final_stop-final_entry)<min_stop_distance)
+           {
+            final_stop=NormalizeDouble(final_entry+min_stop_distance,digits);
+            if((final_stop-final_entry)<min_stop_distance)
+               final_stop=NormalizeDouble(final_stop+point,digits);
+           }
+         if(!(final_stop>final_entry) || (final_stop-final_entry)<min_stop_distance)
+           {
+            reason="invalid_stop_side";
+            return(false);
+           }
+         final_tp=raw_tp;
+         if(final_tp<=0.0 || final_tp>=final_entry)
+           {
+            double inferred=MathAbs(raw_tp-raw_entry);
+            double fallback_dist=MathMax(inferred,min_stop_distance);
+            final_tp=final_entry-fallback_dist;
+           }
+         final_tp=NormalizeDouble(final_tp,digits);
+         if(!(final_tp<final_entry))
+            final_tp=NormalizeDouble(final_entry-MathMax(min_stop_distance,point),digits);
+         if(!(final_tp<final_entry) || final_tp<=0.0)
+           {
+            reason="invalid_tp_side";
+            return(false);
+           }
+        }
+      return(true);
+     }
    ENUM_ORDER_TYPE_FILLING ResolveFilling(const string symbol) const
      {
       long filling_flags=0;
@@ -100,6 +226,7 @@ public:
      {
       m_symbol=symbol;
       m_deviation=slippage_points;
+      m_magic=magic;
       m_last_spread_points=0.0;
       m_trade.SetExpertMagicNumber(magic);
       m_trade.SetDeviationInPoints(slippage_points);
@@ -128,12 +255,10 @@ public:
          reason="invalid_direction";
          return(false);
         }
-      out.entry=(signal.direction>0 ? SymbolInfoDouble(symbol,SYMBOL_ASK) : SymbolInfoDouble(symbol,SYMBOL_BID));
-      out.stop=signal.stop;
-      out.tp=signal.tp_hint;
+      out.raw_entry=signal.entry;
+      out.raw_stop=signal.stop;
+      out.raw_tp=signal.tp_hint;
       out.spread_points=spread_points;
-      out.stop_distance=MathAbs(out.entry-out.stop);
-      out.target_distance=MathAbs(out.tp-out.entry);
       out.regime=regime;
       out.score=score;
       out.family=FamilyLabel((int)signal.family);
@@ -143,14 +268,30 @@ public:
       SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN,out.volume_min);
       SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX,out.volume_max);
       SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP,out.volume_step);
-      if(out.entry<=0.0 || out.stop<=0.0)
+      string sanitize_reason;
+      double final_entry=0.0,final_stop=0.0,final_tp=0.0,min_stop_distance=0.0,point=0.0;
+      long stops_level=0,freeze_level=0;
+      int digits=0;
+      double snapped_entry=(out.direction>0 ? SymbolInfoDouble(symbol,SYMBOL_ASK) : SymbolInfoDouble(symbol,SYMBOL_BID));
+      if(!SanitizeRequestPrices(symbol,out.direction,out.raw_entry,out.raw_stop,out.raw_tp,final_entry,final_stop,final_tp,min_stop_distance,stops_level,freeze_level,digits,point,sanitize_reason))
         {
-         reason="invalid_request_prices";
+         reason=sanitize_reason;
          return(false);
         }
-      if((out.direction>0 && out.stop>=out.entry) || (out.direction<0 && out.stop<=out.entry))
+      out.snapped_entry=NormalizeDouble(snapped_entry,digits);
+      out.entry=final_entry;
+      out.stop=final_stop;
+      out.tp=final_tp;
+      out.stop_distance=MathAbs(out.entry-out.stop);
+      out.target_distance=MathAbs(out.tp-out.entry);
+      out.min_stop_distance=min_stop_distance;
+      out.stops_level_points=stops_level;
+      out.freeze_level_points=freeze_level;
+      out.digits=digits;
+      out.point=point;
+      if(out.entry<=0.0 || out.stop<=0.0 || out.tp<=0.0)
         {
-         reason="invalid_stop_side";
+         reason="invalid_request_prices";
          return(false);
         }
       return(true);
@@ -233,11 +374,21 @@ public:
            }
         }
 
-      double point=SymbolInfoDouble(req.symbol,SYMBOL_POINT);
-      long stops_level=0,freeze_level=0;
-      SymbolInfoInteger(req.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
-      SymbolInfoInteger(req.symbol,SYMBOL_TRADE_FREEZE_LEVEL,freeze_level);
-      double min_stop_dist=MathMax((double)stops_level*point,point*5.0);
+      int digits=req.digits;
+      if(digits<=0)
+        {
+         long symbol_digits=0;
+         SymbolInfoInteger(req.symbol,SYMBOL_DIGITS,symbol_digits);
+         digits=(int)symbol_digits;
+        }
+      double min_stop_dist=req.min_stop_distance;
+      if(min_stop_dist<=0.0)
+        {
+         double point=SymbolInfoDouble(req.symbol,SYMBOL_POINT);
+         long stops_level=0;
+         SymbolInfoInteger(req.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
+         min_stop_dist=MathMax((double)stops_level*point,point*5.0);
+        }
       if(req.stop_distance<min_stop_dist)
         {
          category="invalid stop distance";
@@ -245,10 +396,16 @@ public:
          return(false);
         }
 
-      if(freeze_level>0 && req.stop_distance<((double)freeze_level*point))
+      if(req.freeze_level_points>0 && req.stop_distance<((double)req.freeze_level_points*req.point))
         {
          category="invalid stop distance";
          reason="inside freeze level";
+         return(false);
+        }
+      if((req.direction>0 && req.tp<=req.entry) || (req.direction<0 && req.tp>=req.entry))
+        {
+         category="invalid request prices";
+         reason="tp side invalid after sanitize";
          return(false);
         }
 
@@ -258,30 +415,36 @@ public:
       check_req.symbol=req.symbol;
       check_req.volume=req.lots;
       check_req.type=(req.direction>0 ? ORDER_TYPE_BUY : ORDER_TYPE_SELL);
-      check_req.price=req.entry;
-      check_req.sl=req.stop;
-      check_req.tp=req.tp;
+      check_req.price=NormalizeDouble(req.entry,digits);
+      check_req.sl=NormalizeDouble(req.stop,digits);
+      check_req.tp=NormalizeDouble(req.tp,digits);
       check_req.deviation=req.deviation;
-      check_req.magic=0;
+      check_req.magic=m_magic;
       check_req.type_filling=req.filling_mode;
       check_req.type_time=ORDER_TIME_GTC;
-      if(OrderCheck(check_req,check_result))
-        {
-         check_diag=StringFormat("ORDER_CHECK retcode=%u(%s) margin=%.2f free=%.2f comment=%s",
-                                check_result.retcode,RetcodeDescription((int)check_result.retcode),
-                                check_result.margin,check_result.margin_free,check_result.comment);
-         if(check_result.retcode!=TRADE_RETCODE_DONE && check_result.retcode!=TRADE_RETCODE_PLACED)
-           {
-            category="order send failed";
-            reason=StringFormat("order check failed %u(%s)",check_result.retcode,check_result.comment);
-            return(false);
-           }
-        }
-      else
+      bool check_ok=OrderCheck(check_req,check_result);
+      uint check_retcode=(uint)check_result.retcode;
+      bool retcode_zero_accepted=(check_retcode==0);
+      check_diag=StringFormat("ORDER_CHECK ok=%s retcode=%u(%s) comment=%s margin=%.2f free=%.2f treatedRetcode0AsAccept=%s",
+                              (check_ok?"Y":"N"),
+                              check_retcode,
+                              RetcodeDescription((int)check_retcode),
+                              check_result.comment,
+                              check_result.margin,
+                              check_result.margin_free,
+                              (retcode_zero_accepted?"Y":"N"));
+      if(retcode_zero_accepted)
+         check_diag=check_diag + " ORDER_CHECK retcode=0 treated_as=ACCEPT_IN_TESTER";
+      if(!check_ok)
         {
          category="order send failed";
          reason="OrderCheck call failed";
-         check_diag="ORDER_CHECK call_failed";
+         return(false);
+        }
+      if(!IsAcceptableOrderCheckRetcode(check_retcode))
+        {
+         category="order send failed";
+         reason=StringFormat("order check failed %u(%s)",check_retcode,check_result.comment);
          return(false);
         }
 
@@ -305,13 +468,13 @@ public:
        string fail_category,fail_reason;
        if(!ValidatePreflight(req,max_spread_points,session_active,duplicate_position,fail_category,fail_reason,check_result,check_diag))
         {
-         diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=FAIL category=%s reason=%s %s",
-                           req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,fail_category,fail_reason,check_diag);
+         diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=FAIL category=%s reason=%s %s",
+                           req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,fail_category,fail_reason,check_diag);
          return(false);
         }
 
-       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f entry=%.2f stop=%.2f tp=%.2f spreadPts=%.1f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=OK %s",
-                         req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.entry,req.stop,req.tp,req.spread_points,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,check_diag);
+       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=OK %s",
+                         req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,check_diag);
 
        bool ok=false;
        if(req.direction>0)
@@ -323,7 +486,7 @@ public:
        if(ok)
          diag=diag + StringFormat(" | POST_SEND ok=true retcode=%d(%s) order=%I64u deal=%I64u",rc,RetcodeDescription(rc),m_trade.ResultOrder(),m_trade.ResultDeal());
        else
-         diag=diag + StringFormat(" | POST_SEND ok=false category=order send failed retcode=%d(%s)",rc,RetcodeDescription(rc));
+         diag=diag + StringFormat(" | POST_SEND ok=false category=order send failed retcode=%d(%s) order=%I64u deal=%I64u",rc,RetcodeDescription(rc),m_trade.ResultOrder(),m_trade.ResultDeal());
        return(ok);
       }
 

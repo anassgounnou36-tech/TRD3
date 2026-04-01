@@ -21,10 +21,14 @@
 - [ ] Confirm near-threshold setup rejections include full score breakdown
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
 - [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
+- [ ] Confirm pre-send logs include raw signal entry/stop/tp, snapped entry, and final normalized entry/SL/TP
+- [ ] Confirm pre-send logs include min stop distance and stops/freeze levels used for sanitization
 - [ ] Confirm order post-send logs include retcode + description + order/deal tickets
 - [ ] Confirm SL modify logs include old/new SL, delta, retcode details
 - [ ] Confirm modify logs clearly state when modify is skipped and why
 - [ ] Confirm execution preflight failures are categorized (invalid symbol/volume/stop/spread/tradable/send/modify)
+- [ ] Confirm `OrderCheck()==true` with retcode `0` is logged as accepted in tester (`ACCEPT_IN_TESTER`) and does not reject valid orders
+- [ ] Confirm `invalid_stop_side` is only raised when side is still invalid after sanitize/clamp/normalize
 - [ ] Confirm blocker log includes both blocker enum and human-readable reason
 - [ ] Confirm InpSizeFromEquity=true sizes from equity
 - [ ] Confirm InpSizeFromEquity=false sizes from balance
