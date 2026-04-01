@@ -49,6 +49,38 @@ private:
       return(ORDER_FILLING_IOC);
      }
 public:
+   string XDF_TradeRetcodeToString(const uint retcode) const
+     {
+      switch(retcode)
+        {
+         case TRADE_RETCODE_REQUOTE: return("TRADE_RETCODE_REQUOTE");
+         case TRADE_RETCODE_REJECT: return("TRADE_RETCODE_REJECT");
+         case TRADE_RETCODE_CANCEL: return("TRADE_RETCODE_CANCEL");
+         case TRADE_RETCODE_PLACED: return("TRADE_RETCODE_PLACED");
+         case TRADE_RETCODE_DONE: return("TRADE_RETCODE_DONE");
+         case TRADE_RETCODE_DONE_PARTIAL: return("TRADE_RETCODE_DONE_PARTIAL");
+         case TRADE_RETCODE_ERROR: return("TRADE_RETCODE_ERROR");
+         case TRADE_RETCODE_TIMEOUT: return("TRADE_RETCODE_TIMEOUT");
+         case TRADE_RETCODE_INVALID: return("TRADE_RETCODE_INVALID");
+         case TRADE_RETCODE_INVALID_VOLUME: return("TRADE_RETCODE_INVALID_VOLUME");
+         case TRADE_RETCODE_INVALID_PRICE: return("TRADE_RETCODE_INVALID_PRICE");
+         case TRADE_RETCODE_INVALID_STOPS: return("TRADE_RETCODE_INVALID_STOPS");
+         case TRADE_RETCODE_TRADE_DISABLED: return("TRADE_RETCODE_TRADE_DISABLED");
+         case TRADE_RETCODE_MARKET_CLOSED: return("TRADE_RETCODE_MARKET_CLOSED");
+         case TRADE_RETCODE_NO_MONEY: return("TRADE_RETCODE_NO_MONEY");
+         case TRADE_RETCODE_PRICE_CHANGED: return("TRADE_RETCODE_PRICE_CHANGED");
+         case TRADE_RETCODE_PRICE_OFF: return("TRADE_RETCODE_PRICE_OFF");
+         case TRADE_RETCODE_INVALID_FILL: return("TRADE_RETCODE_INVALID_FILL");
+         case TRADE_RETCODE_CONNECTION: return("TRADE_RETCODE_CONNECTION");
+         case TRADE_RETCODE_ONLY_REAL: return("TRADE_RETCODE_ONLY_REAL");
+         case TRADE_RETCODE_LIMIT_ORDERS: return("TRADE_RETCODE_LIMIT_ORDERS");
+         case TRADE_RETCODE_LIMIT_VOLUME: return("TRADE_RETCODE_LIMIT_VOLUME");
+         case TRADE_RETCODE_POSITION_CLOSED: return("TRADE_RETCODE_POSITION_CLOSED");
+         case TRADE_RETCODE_INVALID_ORDER: return("TRADE_RETCODE_INVALID_ORDER");
+         default: return(StringFormat("TRADE_RETCODE_%u",retcode));
+        }
+     }
+
    string FamilyLabel(int family) const
      {
       if(family==SETUP_ORB_CONTINUATION) return("ORB");
@@ -74,10 +106,10 @@ public:
       m_trade.SetTypeFillingBySymbol(m_symbol);
      }
 
-   string RetcodeDescription(int retcode) const
-      {
-       return(EnumToString((ENUM_TRADE_RETCODE)retcode));
-      }
+   string RetcodeDescription(uint retcode) const
+       {
+        return(XDF_TradeRetcodeToString(retcode));
+       }
 
    bool BuildNormalizedRequest(const string symbol,const XDFSignal &signal,double lots,double spread_points,int regime,int score,XDFNormalizedTradeRequest &out,string &reason) const
      {
@@ -287,7 +319,7 @@ public:
        else
          ok=m_trade.Sell(req.lots,req.symbol,0.0,req.stop,req.tp,signal.reason);
 
-       int rc=(int)m_trade.ResultRetcode();
+       uint rc=(uint)m_trade.ResultRetcode();
        if(ok)
          diag=diag + StringFormat(" | POST_SEND ok=true retcode=%d(%s) order=%I64u deal=%I64u",rc,RetcodeDescription(rc),m_trade.ResultOrder(),m_trade.ResultDeal());
        else
@@ -303,7 +335,7 @@ public:
           return(false);
          }
        bool ok=m_trade.PositionModify(symbol,sl,tp);
-       int rc=(int)m_trade.ResultRetcode();
+       uint rc=(uint)m_trade.ResultRetcode();
        if(ok)
           diag=StringFormat("MODIFY symbol=%s skipped=false oldSL=%.2f newSL=%.2f deltaSL=%.2f tp=%.2f ok=true retcode=%d(%s)",
                             symbol,old_sl,sl,(sl-old_sl),tp,rc,RetcodeDescription(rc));

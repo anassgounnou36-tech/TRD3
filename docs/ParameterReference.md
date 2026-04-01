@@ -9,6 +9,7 @@
 - InpNYTradeMinutes
 - Note: all session times use broker server time
 - EA init logs configured London/NY windows, current server time, and resolved trade symbol; tune windows to your broker server offset (XM may differ by server/DST).
+- EA init logs now include explicit session timestamps: start, OR end, and trade end for both London and New York windows.
 - OR construction uses exact M1 bar shifts with deterministic boundaries (start inclusive, OR-end exclusive).
 
 ## Risk
@@ -41,6 +42,7 @@
 - Execution diagnostics include pre-send and post-send trade retcode details
 - Execution preflight validates symbol, direction, volume bounds/step, spread, stop distance, trade mode/tradability, and OrderCheck result.
 - Preflight request snapshot includes: deviation, trade mode, fill mode, volume min/max/step, spread, stop/target distance, family/regime/score.
+- Retcode labels use explicit trade-retcode mapping (manual switch) rather than enum string casting.
 - Execution failures are categorized for diagnostics: invalid symbol, invalid stop distance, invalid volume, spread violation, market not tradable, order send failed, modify failed.
 - Filters are context-first (spread/ATR/session behavior, VWAP/ATR+OR-width, OR-width statistical extremes, compression/chop context), with fixed input limits retained as hard safety caps.
 

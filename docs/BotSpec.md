@@ -53,6 +53,14 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Position management is state-driven (`MGMT_NONE`, `MGMT_OPEN`, `MGMT_TP1_ARMED`, `MGMT_BE_DONE`, `MGMT_TRAIL_ACTIVE`, `MGMT_TIME_EXIT`, `MGMT_COMPLETE`) with calmer transition logging.
 - Dashboard panel expanded to include server time, OR width, eligible/selected families, M15 context summary, management state, and daily lock state.
 
+## v1.4.1 compile + elite hardening
+
+- Fixed compile defects from MetaEditor: removed static-array `ArraySetAsSeries` misuse in active decision paths, replaced retcode enum string-casting with manual trade-retcode mapping, and restored explicit `regime` panel plumbing through signature + callsites.
+- Added shared `ContextBuilder.mqh` so EA and BarAudit build decision context through one path (session + OR + VWAP + spread + M15 context + diagnostics), reducing remaining audit/live drift vectors.
+- Added reusable OR validation diagnostics (`session_start` inclusive, `or_end` exclusive) reporting shifts, included bars, and resulting OR values.
+- Improved historical-context handling by adding time-anchored indicator helpers (`ATRAt`, `BuildM15ContextAt`) used by shared context building.
+- Strengthened init diagnostics to log London/NewYork start, OR end, and trade end timestamps in broker server time.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

@@ -46,6 +46,18 @@ public:
       return(buff[0]);
      }
 
+   double ATRAt(const datetime ts)
+     {
+      int shift=iBarShift(m_symbol,PERIOD_M5,ts,false);
+      if(shift<0)
+         return(0.0);
+      double buff[];
+      ArraySetAsSeries(buff,true);
+      if(CopyBuffer(m_atr_handle,0,shift+1,1,buff)!=1)
+         return(0.0);
+      return(buff[0]);
+     }
+
    bool EMAAligned(bool long_side)
      {
       double fast[],slow[];
@@ -110,6 +122,37 @@ public:
       ctx.slow_ema=M15SlowEMA();
       ctx.slope=M15Slope();
       ctx.atr=M15ATR();
+      ctx.trend_long=(ctx.fast_ema>=ctx.slow_ema);
+      ctx.trend_short=(ctx.fast_ema<=ctx.slow_ema);
+      ctx.trend_alignment=(ctx.trend_long && !ctx.trend_short ? 1 : (ctx.trend_short && !ctx.trend_long ? -1 : 0));
+      ctx.slope_strength=(ctx.atr>0.0 ? MathAbs(ctx.slope)/ctx.atr : 0.0);
+      ctx.price_vs_fast=(price-ctx.fast_ema);
+      return(ctx);
+     }
+
+   XDFM15Context BuildM15ContextAt(const datetime ts,double price)
+     {
+      XDFM15Context ctx;
+      ZeroMemory(ctx);
+      int shift=iBarShift(m_symbol,PERIOD_M15,ts,false);
+      if(shift<0)
+         return(ctx);
+      double fast[];
+      double slow[];
+      double atrb[];
+      ArraySetAsSeries(fast,true);
+      ArraySetAsSeries(slow,true);
+      ArraySetAsSeries(atrb,true);
+      if(CopyBuffer(m_m15_ema_fast_handle,0,shift+1,3,fast)!=3)
+         return(ctx);
+      if(CopyBuffer(m_m15_ema_slow_handle,0,shift+1,1,slow)!=1)
+         return(ctx);
+      if(CopyBuffer(m_m15_atr_handle,0,shift+1,1,atrb)!=1)
+         return(ctx);
+      ctx.fast_ema=fast[0];
+      ctx.slow_ema=slow[0];
+      ctx.slope=(fast[0]-fast[2]);
+      ctx.atr=atrb[0];
       ctx.trend_long=(ctx.fast_ema>=ctx.slow_ema);
       ctx.trend_short=(ctx.fast_ema<=ctx.slow_ema);
       ctx.trend_alignment=(ctx.trend_long && !ctx.trend_short ? 1 : (ctx.trend_short && !ctx.trend_long ? -1 : 0));

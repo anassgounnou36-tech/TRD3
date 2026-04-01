@@ -144,6 +144,9 @@ struct XDFDecisionContext
    double            max_vwap_distance_points;
    double            point;
    bool              allow_trade;
+   int               min_setup_score;
+   int               mixed_setup_score;
+   int               conflict_override_score;
   };
 
 struct XDFDecision

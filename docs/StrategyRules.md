@@ -47,6 +47,12 @@
 - Inclusion rule: session-start bar included; first bar at OR-end excluded.
 - OR diagnostics report start/end, shift span, bar count, and computed OR values.
 
+## Context parity (v1.4.1)
+
+- EA runtime and BarAudit context inputs are built through the same shared context-builder module.
+- Shared context includes OR snapshot, session touches/state, VWAP state, spread/ATR inputs, and full M15 context object.
+- Objective: same symbol/time/session config should produce matching decision inputs across live/audit paths.
+
 ## Timeframe separation (v1.1)
 
 - **M1:** intraday accumulation (OR + session VWAP)

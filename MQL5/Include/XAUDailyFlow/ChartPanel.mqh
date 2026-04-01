@@ -4,7 +4,24 @@
 #include <XAUDailyFlow/Types.mqh>
 #include <XAUDailyFlow/Journal.mqh>
 
-void XDF_UpdatePanel(const string symbol,const string server_time,int session,bool or_built,const XDFOpeningRange &or_data,double vwap,int eligible_family,int selected_family,int score,const string blocker,double spread_points,const string m15_summary,bool has_position,double daily_pl_pct,bool daily_blocked,const string position_state,const string mgmt_state)
+void XDF_UpdatePanel(const string symbol,
+                     const string server_time,
+                     int session,
+                     bool or_built,
+                     const XDFOpeningRange &or_data,
+                     double vwap,
+                     int regime,
+                     int eligible_family,
+                     int selected_family,
+                     int score,
+                     const string blocker,
+                     double spread_points,
+                     const string m15_summary,
+                     bool has_position,
+                     double daily_pl_pct,
+                     bool daily_blocked,
+                     const string position_state,
+                     const string mgmt_state)
   {
    string eligible_text=(eligible_family==SETUP_ORB_CONTINUATION?"ORB":(eligible_family==SETUP_MEAN_REVERSION?"MR":"NONE"));
    string selected_text=(selected_family==SETUP_ORB_CONTINUATION?"ORB":(selected_family==SETUP_MEAN_REVERSION?"MR":"NONE"));

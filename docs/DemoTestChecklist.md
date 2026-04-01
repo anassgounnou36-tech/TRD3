@@ -30,6 +30,10 @@
 - [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
 - [ ] Confirm BarAudit and EA share same strategy decision path (regime/signal/scoring/blockers)
 - [ ] Confirm OR debug logs show exact OR bar count and deterministic boundary handling
+- [ ] Confirm OR validation line shows session_start (inclusive), or_end (exclusive), shifts, bar count, and OR H/L/W
 - [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
 - [ ] Confirm management state transitions use MGMT_* state-machine semantics
+- [ ] Confirm no static-array ArraySetAsSeries warning remains in compile output
+- [ ] Confirm no `ENUM_TRADE_RETCODE` / enum-cast retcode compile error remains
+- [ ] Confirm ChartPanel compiles with explicit regime argument and panel displays regime
 - [ ] Confirm no `test.txt` artifact remains in repository

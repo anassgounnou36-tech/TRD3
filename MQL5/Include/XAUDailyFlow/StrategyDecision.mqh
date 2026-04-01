@@ -58,7 +58,7 @@ public:
       double atr_points=(ctx.point>0.0 ? ctx.atr_m5/ctx.point : 0.0);
       double vwap_dist_points=(ctx.point>0.0 ? MathAbs(ctx.mid_price-ctx.vwap)/ctx.point : 0.0);
       double recent_range_price=0.0;
-      MqlRates m5[3];
+      MqlRates m5[];
       ArraySetAsSeries(m5,true);
       if(CopyRates(ctx.symbol,PERIOD_M5,0,3,m5)>=3)
          recent_range_price=(m5[1].high-m5[1].low);
@@ -103,6 +103,28 @@ public:
         {
          out_decision.blocker.code=BLOCKER_REGIME;
          out_decision.blocker.message="no valid ORB/MR setup";
+         return(false);
+        }
+
+      int threshold=ctx.min_setup_score;
+      bool selected_preferred=true;
+      if(out_decision.regime==REGIME_MIXED)
+         threshold=ctx.mixed_setup_score;
+      else
+        {
+         XDFSetupFamily preferred=(out_decision.regime==REGIME_MEAN_REVERSION?SETUP_MEAN_REVERSION:SETUP_ORB_CONTINUATION);
+         if(out_decision.selected_family!=preferred)
+           {
+            selected_preferred=false;
+            threshold=ctx.conflict_override_score;
+           }
+        }
+
+      if(out_decision.selected_score.total<threshold)
+        {
+         out_decision.blocker.code=BLOCKER_SCORE;
+         out_decision.blocker.message=StringFormat("score %d < threshold %d (preferred=%s regime=%s)",
+                                                   out_decision.selected_score.total,threshold,(selected_preferred?"Y":"N"),XDF_RegimeToString((int)out_decision.regime));
          return(false);
         }
 

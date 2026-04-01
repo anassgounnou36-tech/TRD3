@@ -62,6 +62,28 @@ public:
         }
       return(MathAbs(new_sl-state.stop)>=min_norm_step);
      }
+
+   XDFMgmtState XDF_UpdateManagementState(const XDFPositionState &state,
+                                          const XDFMgmtState current_state,
+                                          const bool tp1_seen,
+                                          const bool be_done,
+                                          const bool trail_active,
+                                          const bool time_exit) const
+     {
+      if(!state.has_position)
+         return(MGMT_NONE);
+      if(time_exit)
+         return(MGMT_TIME_EXIT);
+      if(trail_active)
+         return(MGMT_TRAIL_ACTIVE);
+      if(be_done)
+         return(MGMT_BE_DONE);
+      if(tp1_seen)
+         return(MGMT_TP1_ARMED);
+      if(current_state==MGMT_COMPLETE)
+         return(MGMT_COMPLETE);
+      return(MGMT_OPEN);
+     }
   };
 
 #endif
