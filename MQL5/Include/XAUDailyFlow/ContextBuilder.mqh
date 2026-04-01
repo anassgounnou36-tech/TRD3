@@ -8,6 +8,8 @@
 #include <XAUDailyFlow/VWAPEngine.mqh>
 #include <XAUDailyFlow/OpeningRangeEngine.mqh>
 
+const double XDF_AUDIT_SPREAD_RANGE_FACTOR=0.10;
+
 bool XDF_ValidateOpeningRange(const datetime session_start,const datetime or_end,const string symbol,const XDFOpeningRange &or_data,string &diag)
   {
    int start_shift=iBarShift(symbol,PERIOD_M1,session_start,false);
@@ -88,7 +90,7 @@ bool XDF_BuildDecisionContext(const string symbol,
    out_ctx.atr_m5=(live_mode?ind.ATR():ind.ATRAt(ts));
    out_ctx.spread_points=((ask>0.0 && bid>0.0 && specs.point>0.0)?((ask-bid)/specs.point):0.0);
    if(!live_mode && specs.point>0.0 && m5_shift>=1 && CopyRates(symbol,PERIOD_M5,m5_shift,2,m5)>=2)
-      out_ctx.spread_points=((m5[0].high-m5[0].low)/specs.point)*0.10;
+      out_ctx.spread_points=((m5[0].high-m5[0].low)/specs.point)*XDF_AUDIT_SPREAD_RANGE_FACTOR;
    out_ctx.max_spread_points=max_spread_points;
    out_ctx.min_atr=min_atr;
    out_ctx.max_vwap_distance_points=max_vwap_dist_points;
