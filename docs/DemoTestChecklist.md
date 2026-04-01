@@ -5,6 +5,7 @@
 - [ ] Validate panel shows OR, VWAP, regime, setup score, blocker reason
 - [ ] Validate panel shows active session, OR-built status, setup candidate family, position state, and daily kill-switch status
 - [ ] Validate panel also shows server time, OR width, eligible family, selected family, M15 context summary, and management state
+- [ ] Validate panel shows `BOTH` as eligible state when ORB and MR are both valid
 - [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
 - [ ] Validate no-signal outcomes use `BLOCKER_NO_SETUP` and reserve `BLOCKER_REGIME` for true regime/filter rejections
 - [ ] Confirm no trading outside London/NY windows
@@ -31,6 +32,7 @@
 - [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
 - [ ] Confirm BarAudit and EA share same strategy decision path (regime/signal/scoring/blockers)
 - [ ] Confirm BarAudit output includes `orb_valid`, `mr_valid`, `orb_subtype`, `mr_subtype`, `orb_score`, `mr_score`, and reject reason
+- [ ] Confirm BarAudit output includes `orb_reason_invalid` and `mr_reason_invalid` when family candidates are invalid
 - [ ] Confirm historical BarAudit checkpoints use timestamp-aligned closed M5 bars (no current-bar drift)
 - [ ] Confirm OR debug logs show exact OR bar count and deterministic boundary handling
 - [ ] Confirm OR validation line shows session_start (inclusive), or_end (exclusive), shifts, bar count, and OR H/L/W

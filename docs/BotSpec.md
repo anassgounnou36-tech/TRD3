@@ -72,6 +72,15 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Family-specific filtering behavior introduced: ORB tolerates larger VWAP extension (with scoring penalty), MR remains stricter.
 - BarAudit output now surfaces `orb_valid`, `mr_valid`, `orb_subtype`, `mr_subtype`, `orb_score`, `mr_score`, and reject reason for faster root-cause diagnosis.
 
+## v1.5.1 final strategy-selectivity fix
+
+- ORB continuation generation broadened to explicit subtype set: `ORB_DIRECT_BREAK`, `ORB_BREAK_RETEST_HOLD`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_PAUSE_CONTINUE`.
+- MR reclaim/failure generation broadened to explicit subtype set: `MR_IMMEDIATE_SWEEP_RECLAIM`, `MR_FAILED_BREAK_NEXT_BAR_CONFIRM`, `MR_DELAYED_RECLAIM_WINDOW`, `MR_RECLAIM_THEN_MIDPOINT_CONFIRM`, `MR_FALSE_BREAK_HOLD_FAIL`.
+- Signal outputs now carry richer structure diagnostics (`subtype`, `reason_invalid`, and raw quality/penalty fields) to expose why candidates pass/fail.
+- Family-selection semantics corrected: when both families are valid, eligibility is represented explicitly (`SETUP_BOTH`) and selection logs show both scores/subtypes with loser reason.
+- `BLOCKER_NO_SETUP` remains the dedicated no-signal blocker; no-setup detail now includes family-level invalid reasons.
+- Family-specific VWAP handling is materially wider for ORB than MR in filter path, while MR remains stricter on extension rejection.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

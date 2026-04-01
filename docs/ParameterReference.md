@@ -32,6 +32,7 @@
 - Score components are context-aware (including execution quality, VWAP alignment quality, and noise penalties).
 - M15 context contributes through trend alignment and slope-strength weighting.
 - Score internals now also consider subtype quality (ORB/MR), retest/reclaim-window quality, confirmation quality, and level-hold quality.
+- Signal diagnostics now include subtype-level validity context (`subtype`, `reason_invalid`, raw trigger/context/extension/structure fields).
 
 ## Execution / Filters
 - InpMaxSpreadPoints
@@ -47,6 +48,7 @@
 - Execution failures are categorized for diagnostics: invalid symbol, invalid stop distance, invalid volume, spread violation, market not tradable, order send failed, modify failed.
 - Filters are context-first (spread/ATR/session behavior, VWAP/ATR+OR-width, OR-width statistical extremes, compression/chop context), with fixed input limits retained as hard safety caps.
 - Filters apply family-specific tolerance: ORB allows more continuation extension (with score penalties), while MR keeps tighter VWAP-extension rejection.
+- Family selection exposes explicit both-valid eligibility (`SETUP_BOTH`) while still selecting one trade family by score.
 - Blocker diagnostics now include explicit `BLOCKER_NO_SETUP` for true no-signal outcomes.
 
 ## Management state machine (v1.4)

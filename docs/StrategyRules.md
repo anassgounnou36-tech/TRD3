@@ -8,7 +8,7 @@
 4. Confirm by VWAP side and M5 trigger alignment.
 5. Reject overextension versus ATR/VWAP distance constraints.
 6. Use shared decision helpers (same as EA runtime and BarAudit) so audit/live outcomes remain aligned.
-7. ORB subtypes (best valid candidate selected): direct breakout continuation, breakout+shallow retest+hold, two-bar continuation, break-close-hold.
+7. ORB subtypes (best valid candidate selected): `ORB_DIRECT_BREAK`, `ORB_BREAK_RETEST_HOLD`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_PAUSE_CONTINUE`.
 8. If both ORB and MR are eligible, both are scored and only the higher-quality family is selected.
 
 ## Setup Family B: Failed OR / VWAP Mean Reversion
@@ -18,7 +18,7 @@
 3. Use VWAP and OR midpoint as reversion targets.
 4. Prioritize quick intraday exit behavior.
 5. Use the same shared signal evaluation path as runtime (no duplicated audit-only signal logic).
-6. MR subtypes (best valid candidate selected): immediate sweep+reclaim, failed-break+next-bar confirm, delayed reclaim (1–2 bars), reclaim+midpoint/VWAP confirm.
+6. MR subtypes (best valid candidate selected): `MR_IMMEDIATE_SWEEP_RECLAIM`, `MR_FAILED_BREAK_NEXT_BAR_CONFIRM`, `MR_DELAYED_RECLAIM_WINDOW`, `MR_RECLAIM_THEN_MIDPOINT_CONFIRM`, `MR_FALSE_BREAK_HOLD_FAIL`.
 7. Competes against ORB in shared family-selection logic when both are eligible.
 
 ## Regime Guidance
@@ -37,6 +37,7 @@
 - M15 slope-strength context participates in filter/regime quality gates.
 - Blockers are surfaced via stable blocker enums + human-readable reasons in logs/panel.
 - `BLOCKER_NO_SETUP` is used for true no-signal cases; `BLOCKER_REGIME` is reserved for actual regime/filter rejections.
+- If both families are valid, eligibility is represented explicitly (`SETUP_BOTH`) and selection is score-based with subtype-level loser reason logging.
 
 ## Trade management phases (v1.4)
 
