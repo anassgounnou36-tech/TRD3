@@ -83,6 +83,8 @@ datetime g_last_m5_bar=0;
 datetime g_last_m1_vwap_bar=0;
 datetime g_last_day_anchor=0;
 datetime g_last_session_start=0;
+string g_last_or_build_signature="";
+string g_last_or_validate_signature="";
 int g_trades_today=0;
 XDFBlockerInfo g_last_blocker;
 bool g_daily_blocked=false;
@@ -400,16 +402,38 @@ void OnTick()
 
    XDFDecisionContext ctx;
    string ctx_diag;
-   bool session_changed=(g_session_state.session_start!=g_last_session_start);
-   if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
-     {
-      g_last_blocker.code=BLOCKER_SESSION_CLOSED;
-      g_last_blocker.message="OR unavailable";
-      return;
-     }
-   g_diag.Log("OR_BUILD",ctx_diag);
-   if(session_changed)
-      g_filter.ResetSession();
+    bool session_changed=(g_session_state.session_start!=g_last_session_start);
+    if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
+      {
+       g_last_blocker.code=BLOCKER_SESSION_CLOSED;
+       g_last_blocker.message="OR unavailable";
+       return;
+      }
+    if(session_changed)
+      {
+       g_last_or_build_signature="";
+       g_last_or_validate_signature="";
+      }
+    if(g_runtime_session.or_log_signature!="" && g_runtime_session.or_log_signature!=g_last_or_build_signature)
+      {
+       int sep=StringFind(ctx_diag," | OR_VALIDATE ");
+       if(sep>=0)
+         {
+          string build_line=StringSubstr(ctx_diag,0,sep);
+          string validate_line=StringSubstr(ctx_diag,sep+3);
+          g_diag.Log("OR_BUILD",build_line);
+          if(g_runtime_session.or_last_validation_signature!="" && g_runtime_session.or_last_validation_signature!=g_last_or_validate_signature)
+            {
+             g_diag.Log("OR_VALIDATE",validate_line);
+             g_last_or_validate_signature=g_runtime_session.or_last_validation_signature;
+            }
+         }
+       else
+          g_diag.Log("OR_BUILD",ctx_diag);
+       g_last_or_build_signature=g_runtime_session.or_log_signature;
+      }
+    if(session_changed)
+       g_filter.ResetSession();
 
     if(!XDF_NewBar(g_symbol,PERIOD_M5,g_last_m5_bar))
       {

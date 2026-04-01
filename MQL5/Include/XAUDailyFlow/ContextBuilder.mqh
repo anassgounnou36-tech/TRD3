@@ -21,6 +21,19 @@ bool XDF_ValidateOpeningRange(const datetime session_start,const datetime or_end
    return(or_data.valid && count>0);
   }
 
+int XDF_OpeningRangeBarCount(const string symbol,const datetime session_start,const datetime or_end)
+  {
+   int start_shift=iBarShift(symbol,PERIOD_M1,session_start,false);
+   int end_shift=iBarShift(symbol,PERIOD_M1,or_end,false);
+   return(start_shift>=0 && end_shift>=0 ? (start_shift-end_shift) : 0);
+  }
+
+string XDF_OpeningRangeSignature(const datetime session_key,const datetime session_start,const datetime or_end,const XDFOpeningRange &or_data,const int bar_count,const bool finalized)
+  {
+   return(StringFormat("k=%I64d|s=%I64d|e=%I64d|b=%d|h=%.2f|l=%.2f|w=%.2f|f=%d",
+                       (long)session_key,(long)session_start,(long)or_end,bar_count,or_data.high,or_data.low,or_data.width,(finalized?1:0)));
+  }
+
 bool XDF_BuildDecisionContext(const string symbol,
                               const datetime ts,
                               XDFSessionRuntimeState &runtime_state,
@@ -58,15 +71,57 @@ bool XDF_BuildDecisionContext(const string symbol,
    else
       vwap.UpdateTo(ts);
 
-   string or_diag;
-   if(!or_engine.XDF_BuildExactOpeningRange(session_state.session_start,session_state.or_end,out_or,or_diag))
+   const datetime session_key=session_state.session_start;
+   if(runtime_state.or_session_key!=session_key)
      {
-      out_diag=or_diag;
-      return(false);
+      runtime_state.or_finalized=false;
+      runtime_state.or_logged=false;
+      runtime_state.or_session_key=session_key;
+      runtime_state.or_log_signature="";
+      runtime_state.or_last_validation_signature="";
+      runtime_state.cached_or.valid=false;
+      runtime_state.or_bar_count=0;
      }
-   string validation;
-   XDF_ValidateOpeningRange(session_state.session_start,session_state.or_end,symbol,out_or,validation);
-   out_diag=or_diag + " | " + validation;
+   if(session_state.or_complete)
+     {
+      if(!runtime_state.or_finalized || !runtime_state.cached_or.valid)
+        {
+         string or_diag;
+         if(!or_engine.XDF_BuildExactOpeningRange(session_state.session_start,session_state.or_end,out_or,or_diag))
+           {
+            out_diag=or_diag;
+            return(false);
+           }
+         runtime_state.cached_or=out_or;
+         runtime_state.or_bar_count=XDF_OpeningRangeBarCount(symbol,session_state.session_start,session_state.or_end);
+         runtime_state.or_finalized=true;
+        }
+      out_or=runtime_state.cached_or;
+      string sig=XDF_OpeningRangeSignature(session_key,session_state.session_start,session_state.or_end,out_or,runtime_state.or_bar_count,true);
+      string build_line=StringFormat("OR_FINALIZED session=%s start=%s end=%s bars=%d high=%.2f low=%.2f width=%.2f",
+                                     XDF_SessionToString((int)runtime_state.current_session),
+                                     TimeToString(session_state.session_start,TIME_DATE|TIME_MINUTES),
+                                     TimeToString(session_state.or_end,TIME_DATE|TIME_MINUTES),
+                                     runtime_state.or_bar_count,out_or.high,out_or.low,out_or.width);
+      string validation;
+      bool valid_now=XDF_ValidateOpeningRange(session_state.session_start,session_state.or_end,symbol,out_or,validation);
+      if(valid_now && runtime_state.or_last_validation_signature!=sig)
+        {
+         out_diag=build_line + " | " + validation;
+         runtime_state.or_last_validation_signature=sig;
+        }
+      else
+         out_diag=build_line;
+      runtime_state.or_log_signature=sig;
+     }
+   else
+     {
+      out_or.valid=false;
+      out_diag=StringFormat("OR_PENDING session=%s start=%s end=%s",
+                            XDF_SessionToString((int)runtime_state.current_session),
+                            TimeToString(session_state.session_start,TIME_DATE|TIME_MINUTES),
+                            TimeToString(session_state.or_end,TIME_DATE|TIME_MINUTES));
+     }
 
    MqlRates m5[];
    ArraySetAsSeries(m5,true);

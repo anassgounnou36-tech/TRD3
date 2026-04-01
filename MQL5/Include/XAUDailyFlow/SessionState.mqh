@@ -18,6 +18,13 @@ struct XDFSessionRuntimeState
    XDFSetupFamily    last_setup_family;
    int               last_direction;
    XDFBlockerInfo    last_blocker;
+   bool              or_finalized;
+   bool              or_logged;
+   datetime          or_session_key;
+   string            or_log_signature;
+   string            or_last_validation_signature;
+   XDFOpeningRange   cached_or;
+   int               or_bar_count;
   };
 
 void XDF_InitRuntimeSessionState(XDFSessionRuntimeState &st)
@@ -28,6 +35,13 @@ void XDF_InitRuntimeSessionState(XDFSessionRuntimeState &st)
    st.last_direction=0;
    st.last_blocker.code=BLOCKER_NONE;
    st.last_blocker.message="";
+   st.or_finalized=false;
+   st.or_logged=false;
+   st.or_session_key=0;
+   st.or_log_signature="";
+   st.or_last_validation_signature="";
+   st.cached_or.valid=false;
+   st.or_bar_count=0;
   }
 
 bool XDF_IsSameActiveSession(const XDFSessionRuntimeState &st,XDFSessionId sid,const XDFSessionState &computed)
@@ -48,6 +62,13 @@ void XDF_ResetForNewDay(XDFSessionRuntimeState &st,datetime day_anchor)
    st.last_direction=0;
    st.last_blocker.code=BLOCKER_NONE;
    st.last_blocker.message="";
+   st.or_finalized=false;
+   st.or_logged=false;
+   st.or_session_key=0;
+   st.or_log_signature="";
+   st.or_last_validation_signature="";
+   st.cached_or.valid=false;
+   st.or_bar_count=0;
   }
 
 void XDF_ResetForNewSession(XDFSessionRuntimeState &st,XDFSessionId sid,const XDFSessionState &computed)
@@ -61,6 +82,13 @@ void XDF_ResetForNewSession(XDFSessionRuntimeState &st,XDFSessionId sid,const XD
    st.touched_above=false;
    st.touched_below=false;
    st.session_trade_count=0;
+   st.or_finalized=false;
+   st.or_logged=false;
+   st.or_session_key=computed.session_start;
+   st.or_log_signature="";
+   st.or_last_validation_signature="";
+   st.cached_or.valid=false;
+   st.or_bar_count=0;
   }
 
 void XDF_UpdateSessionTouches(XDFSessionRuntimeState &st,double bar_high,double bar_low,const XDFOpeningRange &or_data)

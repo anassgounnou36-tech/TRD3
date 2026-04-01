@@ -80,6 +80,8 @@ void OnStart()
    XDF_InitRuntimeSessionState(runtime_state);
    datetime last_session_start=0;
    datetime last_m1_vwap_bar=0;
+   string last_or_log_signature="";
+   string last_or_validation_signature="";
    XDFVWAPEngine vwap;
 
    Print("=== XAUDailyFlow Bar Audit (shared decision path) ===");
@@ -103,13 +105,29 @@ void OnStart()
          runtime_state.touched_below=false;
          vwap.Reset(sym,ss.session_start);
          last_session_start=ss.session_start;
+         last_or_log_signature="";
+         last_or_validation_signature="";
         }
       XDFOpeningRange or_data;
       XDFDecisionContext ctx;
       string ctx_diag;
       bool have_ctx=XDF_BuildDecisionContext(sym,ts,runtime_state,ss,ind,vwap,or_engine,specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,false,last_session_start,last_m1_vwap_bar,ctx,or_data,ctx_diag);
-      if(have_ctx)
-         Print(ctx_diag);
+      if(have_ctx && runtime_state.or_log_signature!="" && runtime_state.or_log_signature!=last_or_log_signature)
+        {
+         int sep=StringFind(ctx_diag," | OR_VALIDATE ");
+         if(sep>=0)
+           {
+            Print(StringSubstr(ctx_diag,0,sep));
+            if(runtime_state.or_last_validation_signature!="" && runtime_state.or_last_validation_signature!=last_or_validation_signature)
+              {
+               Print(StringSubstr(ctx_diag,sep+3));
+               last_or_validation_signature=runtime_state.or_last_validation_signature;
+              }
+           }
+         else
+            Print(ctx_diag);
+         last_or_log_signature=runtime_state.or_log_signature;
+        }
       if(!have_ctx || !runtime_state.or_complete)
         {
           Print(StringFormat("[%s] blocker=%s detail=%s",TimeToString(ts,TIME_DATE|TIME_MINUTES),XDF_BlockerToString(BLOCKER_SESSION_CLOSED),(!runtime_state.or_complete?"building opening range":"or unavailable")));

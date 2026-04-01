@@ -36,6 +36,8 @@
 - [ ] Confirm historical BarAudit checkpoints use timestamp-aligned closed M5 bars (no current-bar drift)
 - [ ] Confirm OR debug logs show exact OR bar count and deterministic boundary handling
 - [ ] Confirm OR validation line shows session_start (inclusive), or_end (exclusive), shifts, bar count, and OR H/L/W
+- [ ] Confirm OR finalization is session-cached (finalize once per session, reuse cached OR after OR end)
+- [ ] Confirm OR_BUILD/OR_VALIDATE logs are state-change driven and do not flood 3-month tester Journal with identical duplicates
 - [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
 - [ ] Confirm management state transitions use MGMT_* state-machine semantics
 - [ ] Confirm no static-array ArraySetAsSeries warning remains in compile output
