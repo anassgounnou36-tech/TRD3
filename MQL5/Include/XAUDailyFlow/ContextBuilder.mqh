@@ -9,6 +9,7 @@
 #include <XAUDailyFlow/OpeningRangeEngine.mqh>
 #include <XAUDailyFlow/BarUtils.mqh>
 
+// In audit mode, estimate synthetic spread as 10% of closed M5 bar range to avoid zero-spread bias.
 const double XDF_AUDIT_SPREAD_RANGE_FACTOR=0.10;
 
 bool XDF_ValidateOpeningRange(const datetime session_start,const datetime or_end,const string symbol,const XDFOpeningRange &or_data,string &diag)

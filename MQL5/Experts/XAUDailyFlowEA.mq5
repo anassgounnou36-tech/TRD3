@@ -96,6 +96,9 @@ XDFMgmtState g_mgmt_state=MGMT_NONE;
 datetime g_last_position_opened=0;
 bool g_be_moved_for_position=false;
 bool g_tp1_seen_for_position=false;
+const double XDF_BE_MFE_ORB_R=1.0;
+const double XDF_BE_MFE_MR_R=1.2;
+const double XDF_TRAIL_MFE_R=0.8;
 
 int XDF_BarsSinceEntryM5(const datetime opened_at)
   {
@@ -253,8 +256,8 @@ void XDF_ManageOpenPosition(double atr)
     if(active_subtype=="")
        active_subtype="UNKNOWN";
     bool guard_bars_ready=(bars_since_entry>=2);
-    bool be_mfe_ready=(mfe_r>=(active_family==SETUP_MEAN_REVERSION?1.2:1.0));
-    bool trail_mfe_ready=(mfe_r>=0.8);
+    bool be_mfe_ready=(mfe_r>=(active_family==SETUP_MEAN_REVERSION?XDF_BE_MFE_MR_R:XDF_BE_MFE_ORB_R));
+    bool trail_mfe_ready=(mfe_r>=XDF_TRAIL_MFE_R);
     bool be_moved_this_tick=false;
    if(!g_tp1_seen_for_position && risk>0.0 && move>=(risk*1.0))
      {

@@ -54,6 +54,7 @@
 - New blocker class: `BLOCKER_PAYOFF` for structurally weak setup geometry (distinct from score/regime/filter blockers).
 - OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with explicit score penalty.
 - Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR trend penalty flag, exceptional MR override flag, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.
+- Internal strategy constants (v1.5.3 hardening): MR trend penalty `15`, exceptional MR score floor `max(min_setup+20,75)`, restricted-MR extreme score gate `>=90`, strong ORB continuation gate `score>=70` + M15 slope-strength `>=0.08`.
 
 ## Management state machine (v1.4)
 
