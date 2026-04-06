@@ -17,7 +17,7 @@
 - [ ] Confirm spread/vwap-distance filters block noisy conditions
 - [ ] Confirm adaptive filter behavior (ATR-relative spread/VWAP and compression dead-session block)
 - [ ] Confirm adaptive filter behavior uses contextual ratios first and fixed thresholds only as safety caps
-- [ ] Confirm ORB continuation candidates can pass OR-width via secondary allowance only when subtype/score/regime conditions are met (`or_width_secondary_allow=Y`) and score penalty is logged
+- [ ] Confirm ORB continuation candidates can pass OR-width via secondary allowance for strong continuation subtypes (including `ORB_DIRECT_BREAK`) when subtype/score/regime conditions are met (`or_width_secondary_allow=Y`) and score penalty `6` is logged
 - [ ] Confirm `OR_TOO_WIDE` still blocks non-qualifying setups (especially MR or weak ORB)
 - [ ] Confirm regime logs include explicit reason summary
 - [ ] Confirm score logs include full breakdown readability
@@ -25,7 +25,9 @@
 - [ ] Confirm decision logs include `orb_score_raw/final`, `mr_score_raw/final`, MR-penalty flag, exceptional-MR flag, and `selection_reason`
 - [ ] Confirm decision logs include `stopDistPts`, `targetDistPts`, `spreadPts`, `expectedSlipPts`
 - [ ] Confirm TREND_CONTINUATION decisions default to ORB unless `selection_reason=EXCEPTIONAL_MR_OVERRIDE`
-- [ ] Confirm MR selections in TREND_CONTINUATION are materially reduced and only appear for exceptional MR subtypes/quality
+- [ ] Confirm ordinary MR in TREND_CONTINUATION is blocked by default (`mr_block_reason=TREND_CONTINUATION_DEFAULT_BLOCK`)
+- [ ] Confirm MR selections in TREND_CONTINUATION are materially reduced and only appear for exceptional MR reclaim overrides
+- [ ] Confirm exceptional MR override requires MR score >=80 and margin >=10 over ORB when both are valid
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
 - [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
 - [ ] Confirm pre-send logs include raw signal entry/stop/tp, snapped entry, and final normalized entry/SL/TP
@@ -52,9 +54,9 @@
 - [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
 - [ ] Confirm management state transitions use MGMT_* state-machine semantics
 - [ ] Confirm no BE/trailing update happens before 2 fully closed M5 bars after entry
-- [ ] Confirm no trailing update before >=0.8R MFE
-- [ ] Confirm no BE update before ORB >=1.0R MFE and MR >=1.2R MFE
-- [ ] Confirm management logs include `bars_since_entry`, `mfe_r`, action, reason, family, subtype, and guard-delay events
+- [ ] Confirm no trailing update before ORB >=1.2R MFE and MR >=1.5R MFE
+- [ ] Confirm no BE update before ORB >=1.0R MFE and MR >=1.3R MFE
+- [ ] Confirm management logs include `bars_since_entry`, `mfe_r`, action, family, subtype, `oldSL`, `newSL`, reason, and reduced guard-noise behavior
 - [ ] Confirm BE/trail are not executed on the same tick unless it is the first valid management event after guardrails
 - [ ] Confirm no static-array ArraySetAsSeries warning remains in compile output
 - [ ] Confirm no `ENUM_TRADE_RETCODE` / enum-cast retcode compile error remains

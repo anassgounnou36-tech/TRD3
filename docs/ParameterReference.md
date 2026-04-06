@@ -50,11 +50,12 @@
 - Filters apply family-specific tolerance: ORB allows more continuation extension (with score penalties), while MR keeps tighter VWAP-extension rejection.
 - Family selection exposes explicit both-valid eligibility (`SETUP_BOTH`) while still selecting one trade family by score.
 - Blocker diagnostics now include explicit `BLOCKER_NO_SETUP` for true no-signal outcomes.
-- Added hard pre-entry payoff gate (points-normalized stop/target/spread/expected slippage): ORB and MR each have minimum target-vs-stop and post-cost net-target requirements, with MR stricter than ORB.
+- Added hard pre-entry payoff gate (points-normalized stop/target/spread/expected slippage) using realistic expected slippage estimate `min(max(2.0, spread*0.15), 8.0)`.
+- Payoff minimums (v1.5.4 correction): ORB requires `target >= max(0.75*stop, 2.0*spread+slip)` and net target `>=1.0*spread`; MR requires `target >= max(1.00*stop, 2.5*spread+slip)` and net target `>=1.25*spread`.
 - New blocker class: `BLOCKER_PAYOFF` for structurally weak setup geometry (distinct from score/regime/filter blockers).
-- OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with explicit score penalty.
-- Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR trend penalty flag, exceptional MR override flag, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.
-- Internal strategy constants (v1.5.3 hardening): MR trend penalty `15`, exceptional MR score floor `max(min_setup+20,75)`, restricted-MR extreme score gate `>=90`, strong ORB continuation gate `score>=70` + M15 slope-strength `>=0.08`.
+- OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_DIRECT_BREAK`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with wider secondary band (`primary*1.35`) and score penalty `6`.
+- Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR block/override reasons, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.
+- Internal strategy constants (v1.5.4 correction): MR exceptional score floor `>=80`, ORB acceptable quality gate `>=65`, exceptional MR override margin `>=10` points over ORB, strong-continuation M15 slope-strength gate `>=0.08`.
 
 ## Management state machine (v1.4)
 
@@ -65,6 +66,6 @@
 - MGMT_TRAIL_ACTIVE
 - MGMT_TIME_EXIT
 - MGMT_COMPLETE
-- BE guardrails: >=2 closed M5 bars and MFE thresholds by family (ORB >=1.0R, MR >=1.2R).
-- Trail guardrails: >=2 closed M5 bars and >=0.8R MFE.
-- Management logs now include `bars_since_entry`, `mfe_r`, action, delay reason, family, and subtype.
+- BE guardrails: >=2 closed M5 bars and MFE thresholds by family (ORB >=1.0R, MR >=1.3R).
+- Trail guardrails: >=2 closed M5 bars and MFE thresholds by family (ORB >=1.2R, MR >=1.5R).
+- Management logs now include `bars_since_entry`, `mfe_r`, action, family, subtype, `oldSL`, `newSL`, reason; guard-delay lines are state-change driven to reduce tick spam.

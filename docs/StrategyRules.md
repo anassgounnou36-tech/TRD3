@@ -9,7 +9,7 @@
 5. Reject overextension versus ATR/VWAP distance constraints.
 6. Use shared decision helpers (same as EA runtime and BarAudit) so audit/live outcomes remain aligned.
 7. ORB subtypes (best valid candidate selected): `ORB_DIRECT_BREAK`, `ORB_BREAK_RETEST_HOLD`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_PAUSE_CONTINUE`.
-8. In `TREND_CONTINUATION`, ORB is primary: if both families are eligible, ORB is selected by regime priority unless MR passes explicit exceptional-override rules.
+8. In `TREND_CONTINUATION`, ORB is primary: ordinary MR is hard-blocked by default and may only appear through explicit exceptional-override criteria.
 
 ## Setup Family B: Failed OR / VWAP Mean Reversion
 
@@ -19,11 +19,11 @@
 4. Prioritize quick intraday exit behavior.
 5. Use the same shared signal evaluation path as runtime (no duplicated audit-only signal logic).
 6. MR subtypes (best valid candidate selected): `MR_IMMEDIATE_SWEEP_RECLAIM`, `MR_FAILED_BREAK_NEXT_BAR_CONFIRM`, `MR_DELAYED_RECLAIM_WINDOW`, `MR_RECLAIM_THEN_MIDPOINT_CONFIRM`, `MR_FALSE_BREAK_HOLD_FAIL`.
-7. In `TREND_CONTINUATION`, MR is down-ranked by fixed score penalty and can only override ORB when subtype and score/structure/payoff conditions satisfy exceptional counter-trend criteria.
+7. In `TREND_CONTINUATION`, MR is default-blocked (`TREND_CONTINUATION_DEFAULT_BLOCK`) and can only override when all exceptional counter-trend reclaim conditions pass, including high score floor and stricter exceptional-payoff check.
 
 ## Regime Guidance
 
-- TREND_CONTINUATION: ORB-first priority with hard family-preference reasons in logs (e.g., `REGIME_PREFERS_ORB`, `EXCEPTIONAL_MR_OVERRIDE`)
+- TREND_CONTINUATION: ORB-first priority with explicit selection reasons (`TREND_CONTINUATION_PREFERS_ORB`, `ORB_ONLY_VALID`, `EXCEPTIONAL_MR_OVERRIDE`, `MR_BLOCKED_BY_REGIME`)
 - MEAN_REVERSION: favors failed-OR reclaim setups
 - MIXED: both families are evaluated and scored; higher-quality valid family is selected under mixed threshold
 - NO_TRADE: only for clearly poor conditions
@@ -32,7 +32,7 @@
 
 - Spread filter: adaptive versus ATR and local session spread behavior.
 - VWAP-distance filter: family-specific behavior (ORB is more tolerant with score penalties; MR remains stricter).
-- OR-width guard: adaptive to ATR + recent session OR behavior, with ORB-only secondary width allowance for strong continuation subtypes in TREND_CONTINUATION (score-penalized, not free-pass).
+- OR-width guard: adaptive to ATR + recent session OR behavior, with ORB-only secondary width allowance for strong continuation subtypes in TREND_CONTINUATION including `ORB_DIRECT_BREAK` (score-penalized, not free-pass).
 - Dead-session/chop guard: includes bar compression/range contraction behavior, not only static ATR floor.
 - M15 slope-strength context participates in filter/regime quality gates.
 - Blockers are surfaced via stable blocker enums + human-readable reasons in logs/panel.
@@ -44,8 +44,8 @@
 
 - MGMT_NONE → MGMT_OPEN → MGMT_TP1_ARMED → MGMT_BE_DONE → MGMT_TRAIL_ACTIVE → MGMT_TIME_EXIT → MGMT_COMPLETE
 - Breakeven is a one-time transition (no repeated attempts), but only after at least 2 fully closed M5 bars and minimum MFE(R) threshold.
-- BE thresholds: ORB >=1.0R MFE, MR >=1.2R MFE, both after 2 closed bars.
-- Trailing updates require at least 2 fully closed M5 bars and >=0.8R MFE before any trail attempt.
+- BE thresholds: ORB >=1.0R MFE, MR >=1.3R MFE, both after 2 closed bars.
+- Trailing updates require at least 2 fully closed M5 bars and minimum MFE(R): ORB >=1.2R, MR >=1.5R.
 - BE and trail are guarded so they do not fire together in the same tick except when guardrails first permit a single action.
 
 ## Opening range determinism (v1.4)
