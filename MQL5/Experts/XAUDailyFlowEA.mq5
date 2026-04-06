@@ -551,7 +551,7 @@ void OnTick()
        g_last_blocker.message="OR unavailable";
        return;
        }
-     if(ctx.expected_slippage_points>8.0)
+     if(ctx.expected_slippage_points>XDF_EXPECTED_SLIPPAGE_CAP_POINTS)
        {
         g_last_blocker.code=BLOCKER_PAYOFF;
         g_last_blocker.message="BUILD_MISMATCH expected_slippage_points>8.0";
@@ -610,6 +610,13 @@ void OnTick()
                                     XDF_RegimeToString((int)decision.regime),decision.regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",m15_summary));
     if(!decision_ok)
        {
+        if(decision.blocker.code==BLOCKER_PAYOFF)
+          {
+           double rr=(decision.stop_dist_points>0.0?decision.target_dist_points/decision.stop_dist_points:0.0);
+           g_diag.Log("PAYOFF_FAIL",StringFormat("build=%s family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f",
+                                                 XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
+                                                 decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points));
+          }
         if(decision.primary_reject_reason!="")
            g_diag.Log("FAMILY_PRIMARY_REJECT",decision.primary_reject_reason);
         if(decision.fallback_attempted)

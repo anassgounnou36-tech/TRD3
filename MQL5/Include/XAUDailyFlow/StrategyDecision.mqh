@@ -55,7 +55,7 @@ private:
       if(!pass)
         {
          double rr=(stop_dist_pts>0.0?target_dist_pts/stop_dist_pts:0.0);
-         gate_detail=StringFormat("build=v1.5.5-risk-geometry-fix-1 family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f blocker=BLOCKER_PAYOFF minTarget=%.1f net=%.1f minNet=%.1f",
+         gate_detail=StringFormat("family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f blocker=BLOCKER_PAYOFF minTarget=%.1f net=%.1f minNet=%.1f",
                                   (int)signal.family,signal.subtype,rr,stop_dist_pts,target_dist_pts,spread_pts,expected_slip_pts,min_target,net_target,min_net);
         }
       return(pass);
@@ -456,7 +456,7 @@ public:
   };
 
 const int XDFStrategyDecisionEngine::XDF_MR_EXCEPTION_MIN_SCORE=80;
-const int XDFStrategyDecisionEngine::XDF_ORB_ACCEPTABLE_QUALITY_SCORE=65;
+const int XDFStrategyDecisionEngine::XDF_ORB_ACCEPTABLE_QUALITY_SCORE=XDF_ORB_SECONDARY_ALLOW_MIN_SCORE;
 const int XDFStrategyDecisionEngine::XDF_MR_OVERRIDE_MARGIN_OVER_ORB=10;
 const double XDFStrategyDecisionEngine::XDF_M15_STRONG_CONTINUATION_SLOPE=0.08;
 

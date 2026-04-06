@@ -56,6 +56,11 @@ enum XDFSessionId
    SESSION_NEWYORK= 1
   };
 
+const double XDF_EXPECTED_SLIPPAGE_MIN_POINTS=2.0;
+const double XDF_EXPECTED_SLIPPAGE_SPREAD_FACTOR=0.15;
+const double XDF_EXPECTED_SLIPPAGE_CAP_POINTS=8.0;
+const int XDF_ORB_SECONDARY_ALLOW_MIN_SCORE=65;
+
 struct XDFSessionConfig
   {
    int               start_hour;

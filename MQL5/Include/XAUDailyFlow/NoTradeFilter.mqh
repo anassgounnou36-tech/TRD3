@@ -127,7 +127,7 @@ public:
           bool continuation_secondary_allow=(family==SETUP_ORB_CONTINUATION &&
                                             regime==REGIME_TREND_CONTINUATION &&
                                             continuation_quality_subtype &&
-                                            orb_score_final>=65 &&
+                                            orb_score_final>=XDF_ORB_SECONDARY_ALLOW_MIN_SCORE &&
                                             or_width_points>max_or &&
                                             or_width_points<=or_width_secondary_limit);
            if(or_width_points<min_or || or_width_points>max_or)
