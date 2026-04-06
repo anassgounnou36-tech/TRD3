@@ -195,6 +195,10 @@ struct XDFDecision
    string            selection_reason;
    string            mr_block_reason;
    string            mr_override_reason;
+   string            primary_reject_reason;
+   bool              fallback_attempted;
+   bool              fallback_accepted;
+   string            fallback_reason;
    bool              eligible_orb;
    bool              eligible_mr;
    int               orb_score_raw;

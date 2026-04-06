@@ -22,6 +22,8 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
+#define XDF_BUILD_TAG "v1.5.5-risk-geometry-fix-1"
+
 input string InpSymbol = "";
 
 input int InpLondonStartHour = 8;
@@ -96,6 +98,14 @@ XDFMgmtState g_mgmt_state=MGMT_NONE;
 datetime g_last_position_opened=0;
 bool g_be_moved_for_position=false;
 bool g_tp1_seen_for_position=false;
+int g_accepted_orb_count=0;
+int g_accepted_mr_count=0;
+double g_accepted_orb_rr_sum=0.0;
+double g_accepted_mr_rr_sum=0.0;
+int g_geometry_invalidated_candidates=0;
+string g_last_guard_action="";
+string g_last_guard_reason="";
+datetime g_last_guard_bar=0;
 const double XDF_BE_MFE_ORB_R=1.0;
 const double XDF_BE_MFE_MR_R=1.3;
 const double XDF_TRAIL_MFE_ORB_R=1.2;
@@ -231,6 +241,26 @@ void XDF_RefreshSessionState(datetime now)
    g_runtime_session.current_session=sid;
   }
 
+bool XDF_IsGeometryInvalidReason(const string reason)
+  {
+   return(StringFind(reason,"geometry")>=0 ||
+          StringFind(reason,"stop_cap_fail")>=0 ||
+          StringFind(reason,"rr_fail")>=0 ||
+          StringFind(reason,"target_le_stop")>=0);
+  }
+
+void XDF_LogMgmtGuard(const string action,const string reason,const int bars_since_entry,const double mfe_r,const XDFSetupFamily family,const string subtype,const datetime guard_bar)
+  {
+   bool should_log=(action!=g_last_guard_action || reason!=g_last_guard_reason || guard_bar!=g_last_guard_bar);
+   if(!should_log)
+      return;
+   g_last_guard_action=action;
+   g_last_guard_reason=reason;
+   g_last_guard_bar=guard_bar;
+   g_diag.Log("MGMT_GUARD",StringFormat("bars_since_entry=%d mfe_r=%.2f action=%s reason=%s family=%d subtype=%s",
+                                        bars_since_entry,mfe_r,action,reason,(int)family,subtype));
+  }
+
 void XDF_ManageOpenPosition(double atr)
   {
    static string s_last_be_guard="";
@@ -247,6 +277,9 @@ void XDF_ManageOpenPosition(double atr)
       g_mgmt_state=MGMT_OPEN;
       s_last_be_guard="";
       s_last_trail_guard="";
+      g_last_guard_action="";
+      g_last_guard_reason="";
+      g_last_guard_bar=0;
       g_diag.Log("MGMT_PHASE","MGMT_OPEN");
       }
 
@@ -264,6 +297,7 @@ void XDF_ManageOpenPosition(double atr)
      bool be_mfe_ready=(mfe_r>=(active_family==SETUP_MEAN_REVERSION?XDF_BE_MFE_MR_R:XDF_BE_MFE_ORB_R));
      bool trail_mfe_ready=(mfe_r>=(active_family==SETUP_MEAN_REVERSION?XDF_TRAIL_MFE_MR_R:XDF_TRAIL_MFE_ORB_R));
      bool be_moved_this_tick=false;
+    datetime guard_bar=iTime(g_symbol,PERIOD_M5,0);
    if(!g_tp1_seen_for_position && risk>0.0 && move>=(risk*1.0))
      {
       g_tp1_seen_for_position=true;
@@ -273,14 +307,13 @@ void XDF_ManageOpenPosition(double atr)
 
      if(!guard_bars_ready || !be_mfe_ready)
        {
-        string be_guard_reason=(!guard_bars_ready?"need_2_closed_m5_bars":"insufficient_mfe_r");
-        if(be_guard_reason!=s_last_be_guard)
-          {
-           s_last_be_guard=be_guard_reason;
-           g_diag.Log("MGMT_GUARD",StringFormat("bars_since_entry=%d mfe_r=%.2f action=BE_DELAY reason=%s family=%d subtype=%s",
-                                                bars_since_entry,mfe_r,be_guard_reason,(int)active_family,active_subtype));
-          }
-       }
+         string be_guard_reason=(!guard_bars_ready?"need_2_closed_m5_bars":"insufficient_mfe_r");
+         if(be_guard_reason!=s_last_be_guard)
+           {
+            s_last_be_guard=be_guard_reason;
+            XDF_LogMgmtGuard("BE_DELAY",be_guard_reason,bars_since_entry,mfe_r,active_family,active_subtype,guard_bar);
+           }
+        }
      else if(s_last_be_guard!="")
        {
         s_last_be_guard="";
@@ -349,14 +382,13 @@ void XDF_ManageOpenPosition(double atr)
      if(!guard_bars_ready || !trail_mfe_ready)
        {
         string trail_guard_reason=(!guard_bars_ready?"need_2_closed_m5_bars":"insufficient_mfe_r");
-        if(trail_guard_reason!=s_last_trail_guard)
-          {
-           s_last_trail_guard=trail_guard_reason;
-           g_diag.Log("MGMT_GUARD",StringFormat("bars_since_entry=%d mfe_r=%.2f action=TRAIL_DELAY reason=%s family=%d subtype=%s",
-                                                bars_since_entry,mfe_r,trail_guard_reason,(int)active_family,active_subtype));
-          }
-        return;
-       }
+         if(trail_guard_reason!=s_last_trail_guard)
+           {
+            s_last_trail_guard=trail_guard_reason;
+            XDF_LogMgmtGuard("TRAIL_DELAY",trail_guard_reason,bars_since_entry,mfe_r,active_family,active_subtype,last_trail_bar);
+           }
+         return;
+        }
      if(s_last_trail_guard!="")
        {
         s_last_trail_guard="";
@@ -424,14 +456,14 @@ int OnInit()
 
     g_or_engine.Init(g_symbol);
     g_exec.Configure(g_symbol,XDF_MAGIC,InpMaxSlippagePoints);
-    g_diag.Init(InpEnableFileLogging);
+     g_diag.Init(InpEnableFileLogging);
     g_risk.StartDay(AccountInfoDouble(ACCOUNT_EQUITY));
     ZeroMemory(g_counters);
     XDF_InitRuntimeSessionState(g_runtime_session);
     g_last_blocker.code=BLOCKER_NONE;
     g_last_blocker.message="NONE";
 
-    g_diag.Log("INIT",StringFormat("resolvedSymbol=%s configuredSymbol=%s digits=%d minLot=%.2f serverTime=%s",g_symbol,InpSymbol,g_specs.digits,g_specs.min_lot,TimeToString(TimeCurrent(),TIME_DATE|TIME_SECONDS)));
+     g_diag.Log("INIT",StringFormat("build=%s slipModel=min2_pct15_cap8 payoffGate=enabled symbol=%s digits=%d minLot=%.2f serverTime=%s",XDF_BUILD_TAG,g_symbol,g_specs.digits,g_specs.min_lot,TimeToString(TimeCurrent(),TIME_DATE|TIME_SECONDS)));
     datetime day_anchor=XDF_DayAnchor(TimeCurrent());
     datetime lstart=day_anchor + InpLondonStartHour*3600 + InpLondonStartMinute*60;
     datetime lor_end=lstart + InpLondonORMinutes*60;
@@ -448,6 +480,10 @@ int OnInit()
 void OnDeinit(const int reason)
   {
    g_indicators.Release();
+   double avg_orb_rr=(g_accepted_orb_count>0?g_accepted_orb_rr_sum/g_accepted_orb_count:0.0);
+   double avg_mr_rr=(g_accepted_mr_count>0?g_accepted_mr_rr_sum/g_accepted_mr_count:0.0);
+   g_diag.Log("DEINIT_SUMMARY",StringFormat("accepted_orb=%d accepted_mr=%d avg_orb_rr=%.2f avg_mr_rr=%.2f geometry_invalidated=%d",
+                                            g_accepted_orb_count,g_accepted_mr_count,avg_orb_rr,avg_mr_rr,g_geometry_invalidated_candidates));
    g_diag.Log("DEINIT",StringFormat("reason=%d",reason));
    g_diag.Shutdown();
    Comment("");
@@ -509,12 +545,19 @@ void OnTick()
    XDFDecisionContext ctx;
    string ctx_diag;
     bool session_changed=(g_session_state.session_start!=g_last_session_start);
-    if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
+     if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
       {
        g_last_blocker.code=BLOCKER_SESSION_CLOSED;
        g_last_blocker.message="OR unavailable";
        return;
-      }
+       }
+     if(ctx.expected_slippage_points>8.0)
+       {
+        g_last_blocker.code=BLOCKER_PAYOFF;
+        g_last_blocker.message="BUILD_MISMATCH expected_slippage_points>8.0";
+        g_diag.Log("BUILD_MISMATCH",StringFormat("build=%s expectedSlipPts=%.2f symbol=%s regime=%d",XDF_BUILD_TAG,ctx.expected_slippage_points,g_symbol,g_last_regime));
+        return;
+       }
     if(session_changed)
       {
        g_last_or_build_signature="";
@@ -553,17 +596,25 @@ void OnTick()
    string m15_summary=StringFormat("al=%d slope=%.4f str=%.3f atr=%.2f",ctx.m15.trend_alignment,ctx.m15.slope,ctx.m15.slope_strength,ctx.m15.atr);
 
    XDFDecision decision;
-   bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
-   g_last_regime=(int)decision.regime;
+    bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
+    if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
+       g_geometry_invalidated_candidates++;
+    if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
+       g_geometry_invalidated_candidates++;
+    g_last_regime=(int)decision.regime;
    g_last_eligible_family=(int)decision.eligible_family;
    g_last_selected_family=(int)decision.selected_family;
    g_last_score=decision.selected_score.total;
    g_last_blocker=decision.blocker;
    g_diag.Log("REGIME",StringFormat("regime=%s reason=%s bothSides=%s m15=%s",
                                     XDF_RegimeToString((int)decision.regime),decision.regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",m15_summary));
-   if(!decision_ok)
-      {
-       g_counters.setups_rejected++;
+    if(!decision_ok)
+       {
+        if(decision.primary_reject_reason!="")
+           g_diag.Log("FAMILY_PRIMARY_REJECT",decision.primary_reject_reason);
+        if(decision.fallback_attempted)
+           g_diag.Log((decision.fallback_accepted?"FAMILY_FALLBACK_ACCEPT":"FAMILY_FALLBACK_REJECT"),decision.fallback_reason);
+        g_counters.setups_rejected++;
       g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
                                               XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
                                              (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
@@ -645,9 +696,20 @@ void OnTick()
        g_diag.Log("TRADE",StringFormat("%s score=%d lots=%.2f reason=%s",(chosen.direction>0?"BUY":"SELL"),score.total,lots,chosen.reason));
        g_runtime_session.last_setup_family=chosen.family;
        g_runtime_session.last_direction=chosen.direction;
-       g_runtime_session.last_setup_subtype=chosen.subtype;
-       g_mgmt_state=MGMT_OPEN;
-      }
+        g_runtime_session.last_setup_subtype=chosen.subtype;
+        g_mgmt_state=MGMT_OPEN;
+        double rr=(decision.stop_dist_points>0.0?decision.target_dist_points/decision.stop_dist_points:0.0);
+        if(chosen.family==SETUP_ORB_CONTINUATION)
+          {
+           g_accepted_orb_count++;
+           g_accepted_orb_rr_sum+=rr;
+          }
+        else if(chosen.family==SETUP_MEAN_REVERSION)
+          {
+           g_accepted_mr_count++;
+           g_accepted_mr_rr_sum+=rr;
+          }
+       }
    else
      {
       g_last_blocker.code=BLOCKER_EXECUTION_PREFLIGHT;

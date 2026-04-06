@@ -31,7 +31,7 @@ private:
              mr.trigger_body_ratio>=0.45);
      }
    bool PassesPayoffGate(const XDFSignal &signal,const XDFDecisionContext &ctx,double &stop_dist_pts,double &target_dist_pts,double &spread_pts,double &expected_slip_pts,string &gate_detail) const
-     {
+      {
       stop_dist_pts=0.0;
       target_dist_pts=0.0;
       spread_pts=ctx.spread_points;
@@ -53,9 +53,13 @@ private:
       double net_target=target_dist_pts-spread_pts-expected_slip_pts;
       bool pass=(target_dist_pts>=min_target && net_target>=min_net);
       if(!pass)
-         gate_detail=StringFormat("payoff_fail target=%.1f stop=%.1f spread=%.1f slip=%.1f minTarget=%.1f net=%.1f minNet=%.1f",target_dist_pts,stop_dist_pts,spread_pts,expected_slip_pts,min_target,net_target,min_net);
+        {
+         double rr=(stop_dist_pts>0.0?target_dist_pts/stop_dist_pts:0.0);
+         gate_detail=StringFormat("build=v1.5.5-risk-geometry-fix-1 family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f blocker=BLOCKER_PAYOFF minTarget=%.1f net=%.1f minNet=%.1f",
+                                  (int)signal.family,signal.subtype,rr,stop_dist_pts,target_dist_pts,spread_pts,expected_slip_pts,min_target,net_target,min_net);
+        }
       return(pass);
-     }
+      }
    bool PassesExceptionalMRPayoff(const double stop_dist_pts,const double target_dist_pts,const double spread_pts,const double expected_slip_pts) const
      {
       if(stop_dist_pts<=0.0 || target_dist_pts<=0.0)
@@ -118,10 +122,10 @@ private:
       return(true);
      }
 public:
-   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,XDFSignal &orb,XDFSignal &mr)
+   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,XDFSignal &orb,XDFSignal &mr)
       {
-       orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short);
-       mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short);
+       orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points);
+       mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points);
       }
 
    XDFScoreBreakdown EvaluateScore(const XDFSignal &signal,const XDFOpeningRange &or_data,double atr,double spread_points,double vwap_dist_points,XDFRegime regime,const XDFM15Context &m15)
@@ -155,7 +159,7 @@ public:
       long stops_level=0;
       SymbolInfoInteger(ctx.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
       double min_stop_distance=MathMax(ctx.point*5.0,(double)stops_level*ctx.point);
-      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,out_decision.orb_signal,out_decision.mr_signal);
+      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
 
@@ -311,10 +315,56 @@ public:
          out_decision.expected_slip_points=mr_slip_pts;
         }
 
+      bool both_valid_for_fallback=(out_decision.eligible_orb && out_decision.eligible_mr);
+      XDFSetupFamily primary_family=out_decision.selected_family;
+
       if(!EvaluateBlockers(filter,ctx.spread_points,ctx.max_spread_points,ctx.atr_m5,ctx.min_atr,atr_points,vwap_dist_points,ctx.max_vwap_distance_points,recent_range_price,or_width_points,ctx.m15,both_sides,out_decision.selected_family,out_decision.regime,out_decision.selected_signal.subtype,out_decision.orb_score_final,out_decision.blocker,out_decision.or_width_secondary_allow,out_decision.or_width_primary_limit,out_decision.or_width_secondary_limit,out_decision.or_width_score_penalty))
         {
-         out_decision.selected_reject_reason="filter";
-         return(false);
+         out_decision.primary_reject_reason=StringFormat("family=%d reason=%s", (int)primary_family, out_decision.blocker.message);
+         if(both_valid_for_fallback)
+           {
+            out_decision.fallback_attempted=true;
+            XDFSetupFamily alt_family=(primary_family==SETUP_ORB_CONTINUATION?SETUP_MEAN_REVERSION:SETUP_ORB_CONTINUATION);
+            out_decision.selected_family=alt_family;
+            out_decision.selected_signal=(alt_family==SETUP_ORB_CONTINUATION?out_decision.orb_signal:out_decision.mr_signal);
+            out_decision.selected_score=(alt_family==SETUP_ORB_CONTINUATION?out_decision.orb_score:out_decision.mr_score);
+            if(alt_family==SETUP_ORB_CONTINUATION)
+              {
+               out_decision.stop_dist_points=orb_stop_pts;
+               out_decision.target_dist_points=orb_target_pts;
+               out_decision.spread_points=orb_spread_pts;
+               out_decision.expected_slip_points=orb_slip_pts;
+              }
+            else
+              {
+               out_decision.stop_dist_points=mr_stop_pts;
+               out_decision.target_dist_points=mr_target_pts;
+               out_decision.spread_points=mr_spread_pts;
+               out_decision.expected_slip_points=mr_slip_pts;
+              }
+            XDFBlockerInfo alt_blocker;
+            bool alt_ok=EvaluateBlockers(filter,ctx.spread_points,ctx.max_spread_points,ctx.atr_m5,ctx.min_atr,atr_points,vwap_dist_points,ctx.max_vwap_distance_points,recent_range_price,or_width_points,ctx.m15,both_sides,out_decision.selected_family,out_decision.regime,out_decision.selected_signal.subtype,out_decision.orb_score_final,alt_blocker,out_decision.or_width_secondary_allow,out_decision.or_width_primary_limit,out_decision.or_width_secondary_limit,out_decision.or_width_score_penalty);
+            if(alt_ok)
+              {
+               out_decision.fallback_accepted=true;
+               out_decision.fallback_reason=StringFormat("fallback_from=%d_to=%d", (int)primary_family, (int)alt_family);
+               out_decision.selection_reason="FAMILY_FALLBACK_ACCEPT";
+              }
+            else
+              {
+               out_decision.fallback_accepted=false;
+               out_decision.fallback_reason=StringFormat("fallback_from=%d_to=%d fail=%s", (int)primary_family, (int)alt_family, alt_blocker.message);
+               out_decision.selection_reason="FAMILY_FALLBACK_REJECT";
+               out_decision.blocker=alt_blocker;
+               out_decision.selected_reject_reason="filter";
+               return(false);
+              }
+           }
+         else
+           {
+            out_decision.selected_reject_reason="filter";
+            return(false);
+           }
          }
 
       if(out_decision.or_width_secondary_allow && out_decision.selected_family==SETUP_ORB_CONTINUATION && out_decision.or_width_score_penalty>0)
@@ -339,10 +389,60 @@ public:
 
       if(out_decision.selected_score.total<threshold)
         {
-          out_decision.blocker.code=BLOCKER_SCORE;
-          out_decision.blocker.message=StringFormat("score %d < threshold %d (preferred=%s regime=%s)",out_decision.selected_score.total,threshold,(selected_preferred?"Y":"N"),XDF_RegimeToString((int)out_decision.regime));
-          out_decision.selected_reject_reason="score";
-          return(false);
+          out_decision.primary_reject_reason=StringFormat("family=%d score=%d<thr=%d",(int)out_decision.selected_family,out_decision.selected_score.total,threshold);
+          if(both_valid_for_fallback && !out_decision.fallback_accepted)
+            {
+             out_decision.fallback_attempted=true;
+             XDFSetupFamily current_family=out_decision.selected_family;
+             XDFSetupFamily alt_family=(current_family==SETUP_ORB_CONTINUATION?SETUP_MEAN_REVERSION:SETUP_ORB_CONTINUATION);
+             out_decision.selected_family=alt_family;
+             out_decision.selected_signal=(alt_family==SETUP_ORB_CONTINUATION?out_decision.orb_signal:out_decision.mr_signal);
+             out_decision.selected_score=(alt_family==SETUP_ORB_CONTINUATION?out_decision.orb_score:out_decision.mr_score);
+             int alt_threshold=ctx.min_setup_score;
+             bool alt_preferred=true;
+             if(out_decision.regime==REGIME_MIXED)
+                alt_threshold=ctx.mixed_setup_score;
+             else
+               {
+                XDFSetupFamily preferred=(out_decision.regime==REGIME_MEAN_REVERSION?SETUP_MEAN_REVERSION:SETUP_ORB_CONTINUATION);
+                if(alt_family!=preferred)
+                  {
+                   alt_preferred=false;
+                   alt_threshold=ctx.conflict_override_score;
+                  }
+               }
+             XDFBlockerInfo alt_blocker;
+             if(!EvaluateBlockers(filter,ctx.spread_points,ctx.max_spread_points,ctx.atr_m5,ctx.min_atr,atr_points,vwap_dist_points,ctx.max_vwap_distance_points,recent_range_price,or_width_points,ctx.m15,both_sides,out_decision.selected_family,out_decision.regime,out_decision.selected_signal.subtype,out_decision.orb_score_final,alt_blocker,out_decision.or_width_secondary_allow,out_decision.or_width_primary_limit,out_decision.or_width_secondary_limit,out_decision.or_width_score_penalty))
+               {
+                out_decision.fallback_accepted=false;
+                out_decision.fallback_reason=StringFormat("fallback_score_then_filter_fail %s",alt_blocker.message);
+                out_decision.selection_reason="FAMILY_FALLBACK_REJECT";
+                out_decision.blocker=alt_blocker;
+                out_decision.selected_reject_reason="filter";
+                return(false);
+               }
+             if(out_decision.selected_score.total<alt_threshold)
+               {
+                out_decision.fallback_accepted=false;
+                out_decision.fallback_reason=StringFormat("fallback_score_fail score=%d<thr=%d preferred=%s",out_decision.selected_score.total,alt_threshold,(alt_preferred?"Y":"N"));
+                out_decision.selection_reason="FAMILY_FALLBACK_REJECT";
+                out_decision.blocker.code=BLOCKER_SCORE;
+                out_decision.blocker.message=StringFormat("score %d < threshold %d (preferred=%s regime=%s)",out_decision.selected_score.total,alt_threshold,(alt_preferred?"Y":"N"),XDF_RegimeToString((int)out_decision.regime));
+                out_decision.selected_reject_reason="score";
+                return(false);
+               }
+             out_decision.fallback_accepted=true;
+             out_decision.fallback_reason=StringFormat("fallback_after_score family=%d", (int)alt_family);
+             out_decision.selection_reason="FAMILY_FALLBACK_ACCEPT";
+            }
+          else
+            {
+             out_decision.blocker.code=BLOCKER_SCORE;
+             out_decision.blocker.message=StringFormat("score %d < threshold %d (preferred=%s regime=%s)",
+                                                       out_decision.selected_score.total,threshold,(selected_preferred?"Y":"N"),XDF_RegimeToString((int)out_decision.regime));
+             out_decision.selected_reject_reason="score";
+             return(false);
+            }
         }
 
       out_decision.has_setup=true;
