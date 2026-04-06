@@ -289,12 +289,12 @@ void XDF_ManageOpenPosition(double atr)
        }
      if(guard_bars_ready && be_mfe_ready && g_pm.CanMoveToBreakeven(ps,bid,ask,1.0,g_specs.point,g_be_moved_for_position))
        {
-        double be=ps.entry;
-        string mod_diag;
-       double old_sl_buy=NormalizeDouble(ps.stop,g_specs.digits);
-       double new_sl_buy=NormalizeDouble(be,g_specs.digits);
+       double be=ps.entry;
+       string mod_diag;
        if(ps.direction>0 && ps.stop<be)
          {
+          double old_sl_buy=NormalizeDouble(ps.stop,g_specs.digits);
+          double new_sl_buy=NormalizeDouble(be,g_specs.digits);
           if(g_exec.ModifySLTP(g_symbol,ps.stop,NormalizeDouble(be,g_specs.digits),ps.take_profit,g_specs.point,mod_diag))
             {
               g_be_moved_for_position=true;
@@ -306,10 +306,10 @@ void XDF_ManageOpenPosition(double atr)
               }
             g_diag.Log("BE_MOVE",mod_diag);
           }
-       double old_sl_sell=NormalizeDouble(ps.stop,g_specs.digits);
-       double new_sl_sell=NormalizeDouble(be,g_specs.digits);
        if(ps.direction<0 && ps.stop>be)
          {
+          double old_sl_sell=NormalizeDouble(ps.stop,g_specs.digits);
+          double new_sl_sell=NormalizeDouble(be,g_specs.digits);
           if(g_exec.ModifySLTP(g_symbol,ps.stop,NormalizeDouble(be,g_specs.digits),ps.take_profit,g_specs.point,mod_diag))
             {
               g_be_moved_for_position=true;

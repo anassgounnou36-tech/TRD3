@@ -123,7 +123,7 @@ public:
          double max_or=MathMin(atr_points*XDF_OR_ATR_MAX_MULTIPLIER,MathMax(m_avg_or_width_points*XDF_OR_BEHAVIOR_MAX_MULTIPLIER,min_or*1.2));
          or_width_primary_limit=max_or;
           or_width_secondary_limit=max_or*1.35;
-          bool continuation_quality_subtype=(subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
+          bool continuation_quality_subtype=XDF_IsORBContinuationQualitySubtype(subtype);
           bool continuation_secondary_allow=(family==SETUP_ORB_CONTINUATION &&
                                             regime==REGIME_TREND_CONTINUATION &&
                                             continuation_quality_subtype &&

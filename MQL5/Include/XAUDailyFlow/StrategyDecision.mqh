@@ -15,22 +15,14 @@ private:
    XDFORBSignal m_orb;
    XDFMeanReversionSignal m_mr;
    XDFSetupScorer m_scorer;
+   // v1.5.4 correction: exceptional counter-trend MR must be elite-only in trend continuation.
    static const int XDF_MR_EXCEPTION_MIN_SCORE;
+   // v1.5.4 correction: if ORB is at least this strong, MR override is disallowed.
    static const int XDF_ORB_ACCEPTABLE_QUALITY_SCORE;
+   // v1.5.4 correction: exceptional MR needs a clear edge to beat continuation ORB.
    static const int XDF_MR_OVERRIDE_MARGIN_OVER_ORB;
+   // v1.5.4 correction: stronger M15 slope means continuation bias should dominate.
    static const double XDF_M15_STRONG_CONTINUATION_SLOPE;
-   bool IsContinuationQualityORBSubtype(const string subtype) const
-     {
-      return(subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
-     }
-   bool IsExceptionalMRSubtype(const string subtype) const
-     {
-      return(subtype=="MR_RECLAIM_THEN_MIDPOINT_CONFIRM" || subtype=="MR_FALSE_BREAK_HOLD_FAIL");
-     }
-   bool IsRestrictedMRSubtype(const string subtype) const
-     {
-      return(subtype=="MR_IMMEDIATE_SWEEP_RECLAIM" || subtype=="MR_DELAYED_RECLAIM_WINDOW");
-     }
    bool HasGenuineReclaim(const XDFSignal &mr) const
      {
       return(mr.reclaim_window_quality>=12 &&
@@ -86,12 +78,12 @@ private:
          reason="mr_invalid_or_payoff_fail";
          return(false);
         }
-      if(!IsExceptionalMRSubtype(mr_signal.subtype))
+      if(!XDF_IsExceptionalMRSubtype(mr_signal.subtype))
         {
          reason="mr_subtype_not_exceptional";
          return(false);
         }
-      if(IsRestrictedMRSubtype(mr_signal.subtype))
+      if(XDF_IsRestrictedMRSubtype(mr_signal.subtype))
         {
          reason="mr_restricted_subtype";
          return(false);

@@ -51,7 +51,7 @@
 - Family selection exposes explicit both-valid eligibility (`SETUP_BOTH`) while still selecting one trade family by score.
 - Blocker diagnostics now include explicit `BLOCKER_NO_SETUP` for true no-signal outcomes.
 - Added hard pre-entry payoff gate (points-normalized stop/target/spread/expected slippage) using realistic expected slippage estimate `min(max(2.0, spread*0.15), 8.0)`.
-- Payoff minimums (v1.5.4 correction): ORB requires `target >= max(0.75*stop, 2.0*spread+slip)` and net target `>=1.0*spread`; MR requires `target >= max(1.00*stop, 2.5*spread+slip)` and net target `>=1.25*spread`.
+- Payoff minimums (v1.5.4 correction): ORB requires `target >= max(0.75 * stop, 2.0 * spread + slip)` and net target `>= 1.0 * spread`; MR requires `target >= max(1.00 * stop, 2.5 * spread + slip)` and net target `>= 1.25 * spread`.
 - New blocker class: `BLOCKER_PAYOFF` for structurally weak setup geometry (distinct from score/regime/filter blockers).
 - OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_DIRECT_BREAK`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with wider secondary band (`primary*1.35`) and score penalty `6`.
 - Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR block/override reasons, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.

@@ -240,4 +240,20 @@ struct XDFPositionState
    bool              tp1_seen;
   };
 
+// v1.5.4 continuation-quality ORB set used for secondary OR-width allowance.
+bool XDF_IsORBContinuationQualitySubtype(const string subtype)
+  {
+   return(subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
+  }
+
+bool XDF_IsExceptionalMRSubtype(const string subtype)
+  {
+   return(subtype=="MR_RECLAIM_THEN_MIDPOINT_CONFIRM" || subtype=="MR_FALSE_BREAK_HOLD_FAIL");
+  }
+
+bool XDF_IsRestrictedMRSubtype(const string subtype)
+  {
+   return(subtype=="MR_IMMEDIATE_SWEEP_RECLAIM" || subtype=="MR_DELAYED_RECLAIM_WINDOW");
+  }
+
 #endif
