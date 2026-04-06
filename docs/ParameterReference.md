@@ -50,6 +50,10 @@
 - Filters apply family-specific tolerance: ORB allows more continuation extension (with score penalties), while MR keeps tighter VWAP-extension rejection.
 - Family selection exposes explicit both-valid eligibility (`SETUP_BOTH`) while still selecting one trade family by score.
 - Blocker diagnostics now include explicit `BLOCKER_NO_SETUP` for true no-signal outcomes.
+- Added hard pre-entry payoff gate (points-normalized stop/target/spread/expected slippage): ORB and MR each have minimum target-vs-stop and post-cost net-target requirements, with MR stricter than ORB.
+- New blocker class: `BLOCKER_PAYOFF` for structurally weak setup geometry (distinct from score/regime/filter blockers).
+- OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with explicit score penalty.
+- Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR trend penalty flag, exceptional MR override flag, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.
 
 ## Management state machine (v1.4)
 
@@ -60,3 +64,6 @@
 - MGMT_TRAIL_ACTIVE
 - MGMT_TIME_EXIT
 - MGMT_COMPLETE
+- BE guardrails: >=2 closed M5 bars and MFE thresholds by family (ORB >=1.0R, MR >=1.2R).
+- Trail guardrails: >=2 closed M5 bars and >=0.8R MFE.
+- Management logs now include `bars_since_entry`, `mfe_r`, action, delay reason, family, and subtype.

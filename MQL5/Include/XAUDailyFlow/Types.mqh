@@ -45,7 +45,8 @@ enum XDFBlocker
    BLOCKER_VOLUME              = 12,
    BLOCKER_EXECUTION_PREFLIGHT = 13,
    BLOCKER_SESSION_CLOSED      = 14,
-   BLOCKER_NO_SETUP            = 15
+   BLOCKER_NO_SETUP            = 15,
+   BLOCKER_PAYOFF              = 16
   };
 
 enum XDFSessionId
@@ -169,6 +170,7 @@ struct XDFDecisionContext
    double            vwap_distance_points;
    double            entry_long;
    double            entry_short;
+   double            expected_slippage_points;
    bool              live_mode;
   };
 
@@ -190,8 +192,23 @@ struct XDFDecision
    string            orb_subtype;
    string            mr_subtype;
    string            selected_reject_reason;
+   string            selection_reason;
    bool              eligible_orb;
    bool              eligible_mr;
+   int               orb_score_raw;
+   int               mr_score_raw;
+   int               orb_score_final;
+   int               mr_score_final;
+   bool              mr_penalty_applied;
+   bool              mr_exceptional_allowed;
+   bool              or_width_secondary_allow;
+   double            or_width_primary_limit;
+   double            or_width_secondary_limit;
+   int               or_width_score_penalty;
+   double            stop_dist_points;
+   double            target_dist_points;
+   double            spread_points;
+   double            expected_slip_points;
   };
 
 struct XDFSymbolSpecs

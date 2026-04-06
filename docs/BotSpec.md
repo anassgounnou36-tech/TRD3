@@ -89,6 +89,14 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Pre-send diagnostics now include raw signal prices, snapped entry, final normalized prices, min stop distance, stop/freeze levels, and explicit OrderCheck outcome details.
 - OrderCheck request now reuses configured EA magic for consistency with actual sends.
 
+## v1.5.3 expectancy hardening
+
+- TREND_CONTINUATION family priority is now explicit: ORB is the default winner; MR receives a fixed trend penalty and can only override under exceptional counter-trend criteria with stronger quality constraints.
+- Added hard pre-entry payoff gate in points (stop/target/spread/expected slippage) with family-specific minimum geometry and explicit `BLOCKER_PAYOFF` classification.
+- OR-width handling remains protective but now has ORB-only secondary allowance for strong continuation subtypes in TREND_CONTINUATION (with explicit score penalty and diagnostics), reducing over-blocking from `OR_TOO_WIDE`.
+- Decision diagnostics now expose raw vs final ORB/MR scores, MR-penalty/exception flags, payoff distances, secondary OR-width allowance details, blocker, and family selection reason.
+- Position management now delays BE/trailing until at least two fully closed M5 bars and required MFE-in-R thresholds; logs include bars-since-entry, MFE(R), action, delay reason, family, and subtype.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

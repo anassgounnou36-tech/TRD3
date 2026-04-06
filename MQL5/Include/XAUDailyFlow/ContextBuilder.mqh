@@ -171,15 +171,18 @@ bool XDF_BuildDecisionContext(const string symbol,
    if(live_mode)
      {
       out_ctx.entry_long=(ask>0.0?ask:mid+spread_price*0.5);
-      out_ctx.entry_short=(bid>0.0?bid:mid-spread_price*0.5);
-     }
-   else
-     {
-      out_ctx.entry_long=mid+spread_price*0.5;
-      out_ctx.entry_short=mid-spread_price*0.5;
-     }
-   out_ctx.live_mode=live_mode;
-   return(true);
-  }
+    out_ctx.entry_short=(bid>0.0?bid:mid-spread_price*0.5);
+      }
+    else
+      {
+       out_ctx.entry_long=mid+spread_price*0.5;
+       out_ctx.entry_short=mid-spread_price*0.5;
+      }
+    out_ctx.expected_slippage_points=max_spread_points*0.45;
+    if(out_ctx.expected_slippage_points<1.0)
+       out_ctx.expected_slippage_points=1.0;
+    out_ctx.live_mode=live_mode;
+    return(true);
+   }
 
 #endif

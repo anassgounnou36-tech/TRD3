@@ -17,6 +17,7 @@ struct XDFSessionRuntimeState
    int               session_trade_count;
    XDFSetupFamily    last_setup_family;
    int               last_direction;
+   string            last_setup_subtype;
    XDFBlockerInfo    last_blocker;
    bool              or_finalized;
    bool              or_logged;
@@ -33,6 +34,7 @@ void XDF_InitRuntimeSessionState(XDFSessionRuntimeState &st)
    st.current_session=SESSION_NONE;
    st.last_setup_family=SETUP_NONE;
    st.last_direction=0;
+   st.last_setup_subtype="";
    st.last_blocker.code=BLOCKER_NONE;
    st.last_blocker.message="";
    st.or_finalized=false;
@@ -60,6 +62,7 @@ void XDF_ResetForNewDay(XDFSessionRuntimeState &st,datetime day_anchor)
    st.touched_below=false;
    st.last_setup_family=SETUP_NONE;
    st.last_direction=0;
+   st.last_setup_subtype="";
    st.last_blocker.code=BLOCKER_NONE;
    st.last_blocker.message="";
    st.or_finalized=false;
@@ -82,6 +85,7 @@ void XDF_ResetForNewSession(XDFSessionRuntimeState &st,XDFSessionId sid,const XD
    st.touched_above=false;
    st.touched_below=false;
    st.session_trade_count=0;
+   st.last_setup_subtype="";
    st.or_finalized=false;
    st.or_logged=false;
    st.or_session_key=computed.session_start;

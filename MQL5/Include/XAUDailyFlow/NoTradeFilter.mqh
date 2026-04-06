@@ -38,10 +38,14 @@ public:
       m_avg_bar_range_points=0.0;
      }
 
-    bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,const XDFM15Context &m15,bool both_sides_violated,const XDFSetupFamily family,XDFBlockerInfo &blocker)
-     {
+    bool Allow(double spread_points,double max_spread,double atr,double min_atr,double atr_points,double vwap_dist_points,double max_vwap_dist,double recent_range_price,double or_width_points,const XDFM15Context &m15,bool both_sides_violated,const XDFSetupFamily family,const XDFRegime regime,const string subtype,const int orb_score_final,XDFBlockerInfo &blocker,bool &or_width_secondary_allow,double &or_width_primary_limit,double &or_width_secondary_limit,int &or_width_score_penalty)
+      {
       blocker.code=BLOCKER_NONE;
       blocker.message="";
+      or_width_secondary_allow=false;
+      or_width_primary_limit=0.0;
+      or_width_secondary_limit=0.0;
+      or_width_score_penalty=0;
       if(m_avg_spread_points<=0.0)
          m_avg_spread_points=spread_points;
       else
@@ -116,13 +120,30 @@ public:
         {
          double min_or=MathMax(atr_points*XDF_OR_ATR_MIN_MULTIPLIER,m_avg_or_width_points*XDF_OR_BEHAVIOR_MIN_MULTIPLIER);
          double max_or=MathMin(atr_points*XDF_OR_ATR_MAX_MULTIPLIER,MathMax(m_avg_or_width_points*XDF_OR_BEHAVIOR_MAX_MULTIPLIER,min_or*1.2));
-          if(or_width_points<min_or || or_width_points>max_or)
-            {
-             blocker.code=(or_width_points<min_or?BLOCKER_OR_TOO_NARROW:BLOCKER_OR_TOO_WIDE);
-             blocker.message=StringFormat("orWidth %.1f outside [%.1f, %.1f]",or_width_points,min_or,max_or);
-             return(false);
-            }
-         }
+         or_width_primary_limit=max_or;
+         or_width_secondary_limit=max_or*1.25;
+         bool continuation_quality_subtype=(subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
+         bool continuation_secondary_allow=(family==SETUP_ORB_CONTINUATION &&
+                                           regime==REGIME_TREND_CONTINUATION &&
+                                           continuation_quality_subtype &&
+                                           orb_score_final>=70 &&
+                                           or_width_points>max_or &&
+                                           or_width_points<=or_width_secondary_limit);
+           if(or_width_points<min_or || or_width_points>max_or)
+             {
+              if(or_width_points>max_or && continuation_secondary_allow)
+                {
+                 or_width_secondary_allow=true;
+                 or_width_score_penalty=8;
+                }
+              else
+                {
+                 blocker.code=(or_width_points<min_or?BLOCKER_OR_TOO_NARROW:BLOCKER_OR_TOO_WIDE);
+                 blocker.message=StringFormat("orWidth %.1f outside [%.1f, %.1f]",or_width_points,min_or,max_or);
+                 return(false);
+                }
+             }
+          }
       if(atr<(min_atr*XDF_COMPRESSION_ATR_NEAR_FACTOR) && recent_range_price<(atr*XDF_COMPRESSION_RANGE_ATR_RATIO))
          {
           blocker.code=BLOCKER_ATR;
