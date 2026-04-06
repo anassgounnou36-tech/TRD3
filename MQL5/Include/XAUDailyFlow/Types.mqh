@@ -117,6 +117,15 @@ struct XDFSignal
    int               raw_context_quality;
    int               raw_extension_penalty;
    int               raw_structure_quality;
+   double            stop_points;
+   double            target_points;
+   double            atr_points;
+   double            or_width_points;
+   double            spread_points;
+   double            slip_points;
+   double            gross_rr;
+   double            net_target_points;
+   double            net_rr;
   };
 
 struct XDFScoreBreakdown
@@ -200,6 +209,8 @@ struct XDFDecision
    string            selection_reason;
    string            mr_block_reason;
    string            mr_override_reason;
+   string            orb_block_reason;
+   string            orb_override_reason;
    string            primary_reject_reason;
    bool              fallback_attempted;
    bool              fallback_accepted;

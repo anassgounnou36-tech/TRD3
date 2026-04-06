@@ -23,6 +23,9 @@ private:
    static const int XDF_MR_OVERRIDE_MARGIN_OVER_ORB;
    // v1.5.4 correction: stronger M15 slope means continuation bias should dominate.
    static const double XDF_M15_STRONG_CONTINUATION_SLOPE;
+   static const int XDF_MR_REGIME_ORB_OVERRIDE_SCORE;
+   static const double XDF_MR_REGIME_ORB_OVERRIDE_NET_RR;
+   static const double XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE;
    bool HasGenuineReclaim(const XDFSignal &mr) const
      {
       return(mr.reclaim_window_quality>=12 &&
@@ -148,6 +151,8 @@ public:
       out_decision.selection_reason="";
       out_decision.mr_block_reason="";
       out_decision.mr_override_reason="";
+      out_decision.orb_block_reason="";
+      out_decision.orb_override_reason="";
       bool both_sides=(ctx.session.touched_above && ctx.session.touched_below);
       out_decision.regime=m_regime.Detect(ctx.or_data,ctx.atr_m5,ctx.vwap,ctx.mid_price,both_sides,ctx.m15,out_decision.regime_reason);
 
@@ -182,6 +187,31 @@ public:
 
       out_decision.eligible_orb=(out_decision.orb_signal.valid && orb_payoff_ok);
       out_decision.eligible_mr=(out_decision.mr_signal.valid && mr_payoff_ok);
+
+      if(out_decision.regime==REGIME_MEAN_REVERSION && out_decision.orb_signal.valid)
+        {
+         bool subtype_allowed=(out_decision.orb_signal.subtype=="ORB_BREAK_RETEST_HOLD" || out_decision.orb_signal.subtype=="ORB_TWO_BAR_CONFIRM");
+         bool weak_subtype=(out_decision.orb_signal.subtype=="ORB_DIRECT_BREAK" || out_decision.orb_signal.subtype=="ORB_BREAK_PAUSE_CONTINUE");
+         bool strong_m15=(ctx.m15.slope_strength>=XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE);
+         bool width_clean=(!out_decision.or_width_secondary_allow);
+         bool breakout_override=(subtype_allowed &&
+                                !weak_subtype &&
+                                out_decision.orb_score_final>=XDF_MR_REGIME_ORB_OVERRIDE_SCORE &&
+                                out_decision.orb_signal.net_rr>=XDF_MR_REGIME_ORB_OVERRIDE_NET_RR &&
+                                strong_m15 &&
+                                width_clean);
+         if(!breakout_override)
+           {
+           out_decision.eligible_orb=false;
+           out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
+           out_decision.orb_signal.valid=false;
+           out_decision.orb_signal.reason_invalid="MEAN_REVERSION_DEFAULT_BLOCK";
+           }
+         else
+           {
+            out_decision.orb_override_reason="EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION";
+           }
+        }
 
       if(out_decision.regime==REGIME_TREND_CONTINUATION && out_decision.mr_signal.valid)
         {
@@ -228,19 +258,61 @@ public:
                }
             }
           else if(out_decision.regime==REGIME_MEAN_REVERSION)
-            {
-             out_decision.selected_signal=(out_decision.mr_score_final>=out_decision.orb_score_final?out_decision.mr_signal:out_decision.orb_signal);
-             out_decision.selected_family=out_decision.selected_signal.family;
-             out_decision.selected_score=(out_decision.selected_family==SETUP_MEAN_REVERSION?out_decision.mr_score:out_decision.orb_score);
-             out_decision.selection_reason="REGIME_PREFERS_MR";
+             {
+              if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.10)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.10)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.001)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(out_decision.orb_signal.net_target_points>out_decision.mr_signal.net_target_points+0.1)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_target_points>out_decision.orb_signal.net_target_points+0.1)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(out_decision.orb_score_final>=out_decision.mr_score_final)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else
+                 out_decision.selected_signal=out_decision.mr_signal;
+              out_decision.selected_family=out_decision.selected_signal.family;
+              out_decision.selected_score=(out_decision.selected_family==SETUP_MEAN_REVERSION?out_decision.mr_score:out_decision.orb_score);
+              out_decision.selection_reason="REGIME_PREFERS_MR";
              out_decision.selected_reject_reason=StringFormat("both_valid orbFinal=%d mrFinal=%d selected=%d",out_decision.orb_score_final,out_decision.mr_score_final,(int)out_decision.selected_family);
             }
           else
-            {
-             out_decision.selected_signal=(out_decision.orb_score_final>=out_decision.mr_score_final?out_decision.orb_signal:out_decision.mr_signal);
-             out_decision.selected_family=out_decision.selected_signal.family;
-             out_decision.selected_score=(out_decision.selected_family==SETUP_ORB_CONTINUATION?out_decision.orb_score:out_decision.mr_score);
-             out_decision.selection_reason="ADJUSTED_SCORE_COMPARE";
+             {
+              if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.10)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.10)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.001)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(out_decision.orb_signal.net_target_points>out_decision.mr_signal.net_target_points+0.1)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else if(out_decision.mr_signal.net_target_points>out_decision.orb_signal.net_target_points+0.1)
+                 out_decision.selected_signal=out_decision.mr_signal;
+              else if(MathAbs(out_decision.orb_signal.net_rr-out_decision.mr_signal.net_rr)<=0.02 &&
+                      MathAbs(out_decision.orb_signal.net_target_points-out_decision.mr_signal.net_target_points)<=0.5)
+                {
+                 if(out_decision.orb_signal.stop_points+0.1<out_decision.mr_signal.stop_points)
+                    out_decision.selected_signal=out_decision.orb_signal;
+                 else if(out_decision.mr_signal.stop_points+0.1<out_decision.orb_signal.stop_points)
+                    out_decision.selected_signal=out_decision.mr_signal;
+                 else if(out_decision.orb_score_final>=out_decision.mr_score_final)
+                    out_decision.selected_signal=out_decision.orb_signal;
+                 else
+                    out_decision.selected_signal=out_decision.mr_signal;
+                }
+              else if(out_decision.orb_score_final>=out_decision.mr_score_final)
+                 out_decision.selected_signal=out_decision.orb_signal;
+              else
+                 out_decision.selected_signal=out_decision.mr_signal;
+              out_decision.selected_family=out_decision.selected_signal.family;
+              out_decision.selected_score=(out_decision.selected_family==SETUP_ORB_CONTINUATION?out_decision.orb_score:out_decision.mr_score);
+              out_decision.selection_reason="ADJUSTED_SCORE_COMPARE";
              out_decision.selected_reject_reason=StringFormat("both_valid orbFinal=%d mrFinal=%d selected=%d",out_decision.orb_score_final,out_decision.mr_score_final,(int)out_decision.selected_family);
             }
          }
@@ -459,5 +531,8 @@ const int XDFStrategyDecisionEngine::XDF_MR_EXCEPTION_MIN_SCORE=80;
 const int XDFStrategyDecisionEngine::XDF_ORB_ACCEPTABLE_QUALITY_SCORE=XDF_ORB_SECONDARY_ALLOW_MIN_SCORE;
 const int XDFStrategyDecisionEngine::XDF_MR_OVERRIDE_MARGIN_OVER_ORB=10;
 const double XDFStrategyDecisionEngine::XDF_M15_STRONG_CONTINUATION_SLOPE=0.08;
+const int XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_SCORE=82;
+const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_NET_RR=1.15;
+const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE=0.08;
 
 #endif

@@ -97,6 +97,13 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Family selection in TREND_CONTINUATION is now continuation-first and deterministic: ORB preferred by default; exceptional MR can override only if it beats ORB by at least 10 score points.
 - Management guardrails are simplified and less noisy: BE/trailing remain delayed by bars+MFE thresholds, guard logs are state-change driven, and action logs now include bars, MFE(R), family/subtype, old/new SL, and reason.
 
+## v1.5.6 accepted-trade quality hardening
+
+- Source-level signal geometry now enforces both floor and cap in points before a setup can survive: minimum stop floor, maximum stop cap, cost-thin rejection, and net-R thresholds.
+- ORB in `MEAN_REVERSION` is default-blocked; only rare exceptional breakout overrides are allowed under strict subtype/score/net-R/slope conditions.
+- Candidate ranking is net-expectancy first (`netRR`, then `netTargetPts`) before score/structure tie-breakers.
+- Final pre-send payoff verification runs after normalized prices and rejects degraded requests with `PRE_SEND_PAYOFF_FAIL`.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

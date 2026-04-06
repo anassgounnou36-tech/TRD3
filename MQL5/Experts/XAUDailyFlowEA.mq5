@@ -243,7 +243,8 @@ void XDF_RefreshSessionState(datetime now)
 
 bool XDF_IsGeometryInvalidReason(const string reason)
   {
-   return(StringFind(reason,"geometry")>=0 ||
+   return(StringFind(reason,"GEOMETRY")>=0 ||
+          StringFind(reason,"geometry")>=0 ||
           StringFind(reason,"stop_cap_fail")>=0 ||
           StringFind(reason,"rr_fail")>=0 ||
           StringFind(reason,"target_le_stop")>=0);
@@ -596,7 +597,7 @@ void OnTick()
    string m15_summary=StringFormat("al=%d slope=%.4f str=%.3f atr=%.2f",ctx.m15.trend_alignment,ctx.m15.slope,ctx.m15.slope_strength,ctx.m15.atr);
 
    XDFDecision decision;
-    bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
+     bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
     if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
        g_geometry_invalidated_candidates++;
     if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
@@ -610,28 +611,40 @@ void OnTick()
                                     XDF_RegimeToString((int)decision.regime),decision.regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",m15_summary));
     if(!decision_ok)
        {
+        if(decision.orb_block_reason!="")
+           g_diag.Log("ORB_BLOCK",StringFormat("build=%s orb_block_reason=%s regime=%s subtype=%s",XDF_BUILD_TAG,decision.orb_block_reason,XDF_RegimeToString((int)decision.regime),decision.orb_subtype));
+        if(decision.orb_override_reason!="")
+           g_diag.Log("ORB_OVERRIDE",StringFormat("build=%s orb_override_reason=%s regime=%s subtype=%s",XDF_BUILD_TAG,decision.orb_override_reason,XDF_RegimeToString((int)decision.regime),decision.orb_subtype));
         if(decision.blocker.code==BLOCKER_PAYOFF)
           {
-           double rr=(decision.stop_dist_points>0.0?decision.target_dist_points/decision.stop_dist_points:0.0);
-           g_diag.Log("PAYOFF_FAIL",StringFormat("build=%s family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f",
-                                                 XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
-                                                 decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points));
+           double rr=(decision.selected_signal.stop_points>0.0?decision.selected_signal.target_points/decision.selected_signal.stop_points:0.0);
+           g_diag.Log("PAYOFF_FAIL",StringFormat("build=%s family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
+                                                  XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
+                                                 decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,decision.selected_signal.net_rr));
           }
+        if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
+           g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
+                                                     XDF_BUILD_TAG,(int)decision.orb_signal.family,decision.orb_signal.subtype,decision.orb_signal.reason_invalid,
+                                                     decision.orb_signal.stop_points,decision.orb_signal.target_points,decision.orb_signal.spread_points,decision.orb_signal.slip_points,decision.orb_signal.net_rr));
+        if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
+           g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
+                                                     XDF_BUILD_TAG,(int)decision.mr_signal.family,decision.mr_signal.subtype,decision.mr_signal.reason_invalid,
+                                                     decision.mr_signal.stop_points,decision.mr_signal.target_points,decision.mr_signal.spread_points,decision.mr_signal.slip_points,decision.mr_signal.net_rr));
         if(decision.primary_reject_reason!="")
            g_diag.Log("FAMILY_PRIMARY_REJECT",decision.primary_reject_reason);
         if(decision.fallback_attempted)
            g_diag.Log((decision.fallback_accepted?"FAMILY_FALLBACK_ACCEPT":"FAMILY_FALLBACK_REJECT"),decision.fallback_reason);
         g_counters.setups_rejected++;
-      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
-                                              XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
-                                             (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                             (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
-                                             (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
-                                             (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
-                                             decision.mr_block_reason,decision.mr_override_reason,
-                                             (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
-                                             decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,
-                                             (int)decision.selected_family,decision.selection_reason,decision.selected_reject_reason));
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
+                                               XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
+                                              (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
+                                              (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
+                                              (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
+                                              (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
+                                              decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
+                                              (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
+                                              decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,
+                                              (int)decision.selected_family,decision.selection_reason,decision.selected_reject_reason));
         XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_regime,g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
         return;
        }
@@ -642,16 +655,16 @@ void OnTick()
     g_diag.Log("SCORE",StringFormat("range=%d context=%d trigger=%d exec=%d vwap=%d noise=%d total=%d family=%d",
                                     score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,
                                     score.vwap_quality,score.noise_penalty,score.total,(int)chosen.family));
-    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
-                                            (int)decision.eligible_family,(int)decision.selected_family,decision.selection_reason,
-                                            (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                            decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
-                                            decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
-                                            (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
-                                            decision.mr_block_reason,decision.mr_override_reason,
-                                            (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
-                                            decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,
-                                            decision.selected_reject_reason));
+    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
+                                             (int)decision.eligible_family,(int)decision.selected_family,decision.selection_reason,
+                                             (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
+                                             decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
+                                             decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
+                                             (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
+                                             decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
+                                             (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
+                                             decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,
+                                             decision.selected_reject_reason));
 
      if(g_daily_blocked)
       {
@@ -690,17 +703,20 @@ void OnTick()
       }
 
    string exec_diag;
-     bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,InpMaxSpreadPoints,(current_session!=SESSION_NONE),has_pos,(int)decision.regime,score.total,exec_diag);
-   g_diag.Log("ORDER_ATTEMPT",exec_diag);
-   if(ok)
-     {
+      bool ok=g_exec.Place(g_symbol,chosen,lots,spread_pts,ctx.expected_slippage_points,InpMaxSpreadPoints,(current_session!=SESSION_NONE),has_pos,(int)decision.regime,score.total,exec_diag);
+    g_diag.Log("ORDER_ATTEMPT",exec_diag);
+    if(ok)
+      {
       g_trades_today++;
       XDF_IncSessionTrades();
       g_counters.trades_placed++;
       g_counters.setups_accepted++;
       g_last_blocker.code=BLOCKER_NONE;
       g_last_blocker.message="trade placed";
-       g_diag.Log("TRADE",StringFormat("%s score=%d lots=%.2f reason=%s",(chosen.direction>0?"BUY":"SELL"),score.total,lots,chosen.reason));
+        g_diag.Log("TRADE",StringFormat("build=%s regime=%s family=%d subtype=%s score=%d stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f grossRR=%.2f netRR=%.2f selection_reason=%s side=%s lots=%.2f",
+                                        XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),(int)chosen.family,chosen.subtype,score.total,
+                                        chosen.stop_points,chosen.target_points,chosen.spread_points,chosen.slip_points,chosen.gross_rr,chosen.net_rr,decision.selection_reason,
+                                        (chosen.direction>0?"BUY":"SELL"),lots));
        g_runtime_session.last_setup_family=chosen.family;
        g_runtime_session.last_direction=chosen.direction;
         g_runtime_session.last_setup_subtype=chosen.subtype;
@@ -718,11 +734,14 @@ void OnTick()
           }
        }
    else
-     {
-      g_last_blocker.code=BLOCKER_EXECUTION_PREFLIGHT;
-      g_last_blocker.message="order placement failed";
-      g_diag.Log("ORDER_FAIL","Order request failed");
-     }
+      {
+       g_last_blocker.code=BLOCKER_EXECUTION_PREFLIGHT;
+       g_last_blocker.message="order placement failed";
+       if(XDF_IsGeometryInvalidReason(chosen.reason_invalid))
+          g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
+                                                    XDF_BUILD_TAG,(int)chosen.family,chosen.subtype,chosen.reason_invalid,chosen.stop_points,chosen.target_points,chosen.spread_points,chosen.slip_points,chosen.net_rr));
+       g_diag.Log("ORDER_FAIL","Order request failed");
+      }
 
     XDF_UpdatePanel(g_symbol,TimeToString(now,TIME_DATE|TIME_SECONDS),current_session,g_or.valid,g_or,g_vwap.Value(),g_last_regime,g_last_eligible_family,g_last_selected_family,g_last_score,g_last_blocker.message,spread_pts,m15_summary,has_pos,XDF_DailyPLPct(),g_daily_blocked,(has_pos?"OPEN":"NONE"),XDF_MgmtStateToString(g_mgmt_state));
   }

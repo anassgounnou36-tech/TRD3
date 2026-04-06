@@ -6,6 +6,20 @@
 class XDFMeanReversionSignal
   {
 private:
+   void XDF_SetGeometryMetrics(XDFSignal &s,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
+     {
+      if(point<=0.0)
+         return;
+      s.stop_points=s.stop_distance/point;
+      s.target_points=s.target_distance/point;
+      s.atr_points=(atr>0.0?atr/point:0.0);
+      s.or_width_points=(or_width>0.0?or_width/point:0.0);
+      s.spread_points=spread_points;
+      s.slip_points=slip_points;
+      s.gross_rr=(s.stop_points>0.0?s.target_points/s.stop_points:0.0);
+      s.net_target_points=s.target_points-spread_points-slip_points;
+      s.net_rr=(s.stop_points>0.0?s.net_target_points/s.stop_points:0.0);
+     }
    double XDF_LongMRStructuralStop(const double sweep_low,const double atr,const double entry)
      {
       double stop=sweep_low-atr*0.08;
@@ -20,31 +34,46 @@ private:
          stop=entry+atr*0.05;
       return(stop);
      }
-   bool XDF_ValidateMRGeometry(XDFSignal &s,const string subtype,const double atr,const double min_rr)
+   bool XDF_ValidateMRGeometry(XDFSignal &s,const string subtype,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
      {
-      if(!s.valid || atr<=0.0 || s.stop_distance<=0.0 || s.target_distance<=0.0)
+      if(!s.valid || point<=0.0 || atr<=0.0)
         {
          s.valid=false;
-         s.reason_invalid="mr_geometry_invalid_inputs";
+         s.reason_invalid="MR_GEOMETRY_INVALID_INPUTS";
          return(false);
         }
-      if(s.stop_distance>atr*0.85)
+
+      XDF_SetGeometryMetrics(s,point,atr,or_width,spread_points,slip_points);
+
+      double stop_floor=MathMax(0.28*s.atr_points,1.40*s.spread_points+2.0*s.slip_points);
+      if(s.stop_points<stop_floor)
         {
          s.valid=false;
-         s.reason_invalid=StringFormat("mr_stop_cap_fail subtype=%s stop=%.2f cap=%.2f",subtype,s.stop_distance,atr*0.85);
+         s.reason_invalid="MR_GEOMETRY_STOP_TOO_TIGHT";
          return(false);
         }
-      if(s.target_distance<=s.stop_distance)
+      if(s.stop_points>0.85*s.atr_points)
         {
          s.valid=false;
-         s.reason_invalid=StringFormat("mr_target_le_stop subtype=%s target=%.2f stop=%.2f",subtype,s.target_distance,s.stop_distance);
+         s.reason_invalid="MR_GEOMETRY_STOP_TOO_WIDE";
          return(false);
         }
-      double rr=(s.stop_distance>0.0?s.target_distance/s.stop_distance:0.0);
-      if(rr<min_rr)
+      if(s.target_points<=s.stop_points || s.net_target_points<=0.0)
         {
          s.valid=false;
-         s.reason_invalid=StringFormat("mr_rr_fail subtype=%s rr=%.2f min=%.2f",subtype,rr,min_rr);
+         s.reason_invalid="MR_GEOMETRY_COST_THIN";
+         return(false);
+        }
+      if(s.net_rr<1.05)
+        {
+         s.valid=false;
+         s.reason_invalid="MR_GEOMETRY_NET_R_TOO_LOW";
+         return(false);
+        }
+      if((subtype=="MR_IMMEDIATE_SWEEP_RECLAIM" || subtype=="MR_DELAYED_RECLAIM_WINDOW") && s.net_rr<1.10)
+        {
+         s.valid=false;
+         s.reason_invalid="MR_GEOMETRY_NET_R_TOO_LOW";
          return(false);
         }
       return(true);
@@ -55,7 +84,7 @@ private:
       double required=entry+risk*min_rr;
       double t1=or_data.midpoint;
       double t2=vwap;
-      double t3=(or_data.high-or_data.low>0.0?or_data.high-(or_data.high-or_data.low)*0.20:or_data.high);
+      double t3=(or_data.high-or_data.low>0.0?or_data.low+(or_data.high-or_data.low)*0.80:or_data.high);
       double structural=MathMax(t1,MathMax(t2,t3));
       return(MathMax(required,structural));
      }
@@ -70,27 +99,35 @@ private:
       return(MathMin(required,structural));
      }
 public:
-   bool IsBetter(const XDFSignal &candidate,const XDFSignal &current_best,const double point,const double spread_points,const double expected_slippage_points)
+   bool IsBetter(const XDFSignal &candidate,const XDFSignal &current_best)
      {
       if(!candidate.valid)
          return(false);
       if(!current_best.valid)
          return(true);
-      double c_stop=(point>0.0?candidate.stop_distance/point:0.0);
-      double c_target=(point>0.0?candidate.target_distance/point:0.0);
-      double b_stop=(point>0.0?current_best.stop_distance/point:0.0);
-      double b_target=(point>0.0?current_best.target_distance/point:0.0);
-      double c_rr=(c_stop>0.0?c_target/c_stop:0.0);
-      double b_rr=(b_stop>0.0?b_target/b_stop:0.0);
-      if(c_rr>b_rr+0.001)
+      if(candidate.net_rr>current_best.net_rr+0.10)
          return(true);
-      if(c_rr+0.001<b_rr)
+      if(candidate.net_rr+0.10<current_best.net_rr)
          return(false);
-      double c_net=c_target-spread_points-expected_slippage_points;
-      double b_net=b_target-spread_points-expected_slippage_points;
-      if(c_net>b_net+0.1)
+      if(candidate.net_rr>current_best.net_rr+0.001)
          return(true);
-      if(c_net+0.1<b_net)
+      if(candidate.net_rr+0.001<current_best.net_rr)
+         return(false);
+      if(candidate.net_target_points>current_best.net_target_points+0.1)
+         return(true);
+      if(candidate.net_target_points+0.1<current_best.net_target_points)
+         return(false);
+      if(MathAbs(candidate.net_rr-current_best.net_rr)<=0.02 &&
+         MathAbs(candidate.net_target_points-current_best.net_target_points)<=0.5)
+        {
+         if(candidate.stop_points+0.1<current_best.stop_points)
+            return(true);
+         if(current_best.stop_points+0.1<candidate.stop_points)
+            return(false);
+        }
+      if(candidate.raw_structure_quality>current_best.raw_structure_quality)
+         return(true);
+      if(candidate.raw_structure_quality<current_best.raw_structure_quality)
          return(false);
       if(candidate.subtype_quality>current_best.subtype_quality)
          return(true);
@@ -169,6 +206,7 @@ public:
         }
 
       double min_sweep=atr*0.15;
+      double or_width=MathMax(or_data.width,atr*0.25);
       XDFSignal candidate;
 
       if(bars[1].low<or_data.low-min_sweep && bars[0].close>or_data.low && bars[0].close<or_data.high)
@@ -176,8 +214,8 @@ public:
          double stop=XDF_LongMRStructuralStop(bars[1].low,atr,entry_long);
          double tp=XDF_LongMRTarget(or_data,vwap,entry_long,stop,1.00);
          candidate=BuildSignal(1,"MR_IMMEDIATE_SWEEP_RECLAIM",26,16,20,10,13,bars[0],entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_IMMEDIATE_SWEEP_RECLAIM",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_IMMEDIATE_SWEEP_RECLAIM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
       if(bars[1].high>or_data.high+min_sweep && bars[0].close<or_data.high && bars[0].close>or_data.low)
@@ -185,8 +223,8 @@ public:
          double stop=XDF_ShortMRStructuralStop(bars[1].high,atr,entry_short);
          double tp=XDF_ShortMRTarget(or_data,vwap,entry_short,stop,1.00);
          candidate=BuildSignal(-1,"MR_IMMEDIATE_SWEEP_RECLAIM",26,16,20,10,13,bars[0],entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_IMMEDIATE_SWEEP_RECLAIM",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_IMMEDIATE_SWEEP_RECLAIM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
 
@@ -195,8 +233,8 @@ public:
          double stop=XDF_LongMRStructuralStop(bars[2].low,atr,entry_long);
          double tp=XDF_LongMRTarget(or_data,vwap,entry_long,stop,1.05);
          candidate=BuildSignal(1,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",24,20,14,12,12,bars[0],entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",atr,1.05);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
       if(bars[2].high>or_data.high+min_sweep && bars[1].close>=or_data.high-atr*0.05 && bars[0].close<or_data.high)
@@ -204,8 +242,8 @@ public:
          double stop=XDF_ShortMRStructuralStop(bars[2].high,atr,entry_short);
          double tp=XDF_ShortMRTarget(or_data,vwap,entry_short,stop,1.05);
          candidate=BuildSignal(-1,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",24,20,14,12,12,bars[0],entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",atr,1.05);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_FAILED_BREAK_NEXT_BAR_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
 
@@ -214,8 +252,8 @@ public:
          double stop=XDF_LongMRStructuralStop(bars[3].low,atr,entry_long);
          double tp=XDF_LongMRTarget(or_data,vwap,entry_long,stop,1.00);
          candidate=BuildSignal(1,"MR_DELAYED_RECLAIM_WINDOW",23,14,18,10,11,bars[0],entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_DELAYED_RECLAIM_WINDOW",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_DELAYED_RECLAIM_WINDOW",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
       if(bars[3].high>or_data.high+min_sweep && (bars[1].close<or_data.high || bars[0].close<or_data.high) && bars[0].close>or_data.low)
@@ -223,8 +261,8 @@ public:
          double stop=XDF_ShortMRStructuralStop(bars[3].high,atr,entry_short);
          double tp=XDF_ShortMRTarget(or_data,vwap,entry_short,stop,1.00);
          candidate=BuildSignal(-1,"MR_DELAYED_RECLAIM_WINDOW",23,14,18,10,11,bars[0],entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_DELAYED_RECLAIM_WINDOW",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_DELAYED_RECLAIM_WINDOW",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
 
@@ -233,8 +271,8 @@ public:
          double stop=XDF_LongMRStructuralStop(MathMin(bars[1].low,bars[2].low),atr,entry_long);
          double tp=XDF_LongMRTarget(or_data,vwap,entry_long,stop,1.00);
          candidate=BuildSignal(1,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",22,18,12,14,12,bars[0],entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
       if(bars[1].close<or_data.high && bars[1].close>or_data.low && (bars[0].close<or_data.midpoint || bars[0].close<vwap))
@@ -242,8 +280,8 @@ public:
          double stop=XDF_ShortMRStructuralStop(MathMax(bars[1].high,bars[2].high),atr,entry_short);
          double tp=XDF_ShortMRTarget(or_data,vwap,entry_short,stop,1.00);
          candidate=BuildSignal(-1,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",22,18,12,14,12,bars[0],entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",atr,1.00);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_RECLAIM_THEN_MIDPOINT_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
 
@@ -252,8 +290,8 @@ public:
          double stop=XDF_ShortMRStructuralStop(MathMax(bars[2].high,bars[1].high),atr,entry_short);
          double tp=XDF_ShortMRTarget(or_data,vwap,entry_short,stop,1.05);
          candidate=BuildSignal(-1,"MR_FALSE_BREAK_HOLD_FAIL",22,17,13,15,11,bars[0],entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_FALSE_BREAK_HOLD_FAIL",atr,1.05);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_FALSE_BREAK_HOLD_FAIL",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
       if(bars[2].close<or_data.low && bars[1].close<or_data.low+atr*0.05 && bars[0].close>or_data.low)
@@ -261,8 +299,8 @@ public:
          double stop=XDF_LongMRStructuralStop(MathMin(bars[2].low,bars[1].low),atr,entry_long);
          double tp=XDF_LongMRTarget(or_data,vwap,entry_long,stop,1.05);
          candidate=BuildSignal(1,"MR_FALSE_BREAK_HOLD_FAIL",22,17,13,15,11,bars[0],entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateMRGeometry(candidate,"MR_FALSE_BREAK_HOLD_FAIL",atr,1.05);
-         if(IsBetter(candidate,best,point,spread_points,expected_slippage_points))
+         XDF_ValidateMRGeometry(candidate,"MR_FALSE_BREAK_HOLD_FAIL",point,atr,or_width,spread_points,expected_slippage_points);
+         if(IsBetter(candidate,best))
             best=candidate;
         }
 

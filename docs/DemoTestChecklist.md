@@ -9,6 +9,7 @@
 - [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
 - [ ] Validate no-signal outcomes use `BLOCKER_NO_SETUP` and reserve `BLOCKER_REGIME` for true regime/filter rejections
 - [ ] Validate weak-geometry candidates are blocked with `BLOCKER_PAYOFF` (not hidden as score/regime)
+- [ ] Confirm source-level geometry rejects include explicit reasons (`ORB_GEOMETRY_*`, `MR_GEOMETRY_*`) with `stopPts/targetPts/spreadPts/slipPts/netRR`
 - [ ] Confirm no trading outside London/NY windows
 - [ ] Confirm init logs print configured London/NY windows (broker-server dependent)
 - [ ] Confirm max daily loss blocker engages
@@ -28,7 +29,10 @@
 - [ ] Confirm ordinary MR in TREND_CONTINUATION is blocked by default (`mr_block_reason=TREND_CONTINUATION_DEFAULT_BLOCK`)
 - [ ] Confirm MR selections in TREND_CONTINUATION are materially reduced and only appear for exceptional MR reclaim overrides
 - [ ] Confirm exceptional MR override requires MR score >=80 and margin >=10 over ORB when both are valid
+- [ ] Confirm ordinary ORB continuation in `MEAN_REVERSION` is blocked by default (`orb_block_reason=MEAN_REVERSION_DEFAULT_BLOCK`)
+- [ ] Confirm ORB in `MEAN_REVERSION` only appears with `orb_override_reason=EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION`
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
+- [ ] Confirm accepted trade logs include build/regime/family/subtype/score and `stopPts/targetPts/spreadPts/slipPts/grossRR/netRR/selection_reason`
 - [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
 - [ ] Confirm pre-send logs include raw signal entry/stop/tp, snapped entry, and final normalized entry/SL/TP
 - [ ] Confirm pre-send logs include min stop distance and stops/freeze levels used for sanitization
@@ -62,3 +66,4 @@
 - [ ] Confirm no `ENUM_TRADE_RETCODE` / enum-cast retcode compile error remains
 - [ ] Confirm ChartPanel compiles with explicit regime argument and panel displays regime
 - [ ] Confirm no `test.txt` artifact remains in repository
+- [ ] Confirm final normalized pre-send payoff gate is active via `PRE_SEND_PAYOFF_FAIL` with final stop/target/spread/slip/netRR fields

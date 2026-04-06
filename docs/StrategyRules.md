@@ -24,7 +24,7 @@
 ## Regime Guidance
 
 - TREND_CONTINUATION: ORB-first priority with explicit selection reasons (`TREND_CONTINUATION_PREFERS_ORB`, `ORB_ONLY_VALID`, `EXCEPTIONAL_MR_OVERRIDE`, `MR_BLOCKED_BY_REGIME`)
-- MEAN_REVERSION: favors failed-OR reclaim setups
+- MEAN_REVERSION: favors failed-OR reclaim setups; ORB is default-blocked (`MEAN_REVERSION_DEFAULT_BLOCK`) except rare exceptional breakout override (`EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION`)
 - MIXED: both families are evaluated and scored; higher-quality valid family is selected under mixed threshold
 - NO_TRADE: only for clearly poor conditions
 
@@ -38,7 +38,9 @@
 - Blockers are surfaced via stable blocker enums + human-readable reasons in logs/panel.
 - `BLOCKER_NO_SETUP` is used for true no-signal cases; `BLOCKER_REGIME` is reserved for actual regime/filter rejections.
 - `BLOCKER_PAYOFF` is used when setup geometry fails hard net-payoff requirements after spread/slippage costs.
-- If both families are valid, eligibility is represented explicitly (`SETUP_BOTH`) and selection is score-based with subtype-level loser reason logging.
+- If both families are valid, eligibility is represented explicitly (`SETUP_BOTH`) and selection is net-expectancy-first: `netRR`, then `netTargetPts`, then tighter stop in close ties, then score/structure.
+- Source-level geometry rejects cost-thin and stop-too-tight/too-wide setups before family selection (family-specific stop floor/cap + net-R requirements).
+- Final pre-send payoff verification re-checks normalized stop/target/spread/slippage; degraded requests are rejected as `PRE_SEND_PAYOFF_FAIL`.
 
 ## Trade management phases (v1.4)
 

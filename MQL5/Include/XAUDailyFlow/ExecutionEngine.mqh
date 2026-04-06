@@ -17,8 +17,13 @@ struct XDFNormalizedTradeRequest
    double stop;
    double tp;
    double spread_points;
+   double expected_slip_points;
    double stop_distance;
    double target_distance;
+   double stop_points;
+   double target_points;
+   double net_target_points;
+   double net_rr;
    double min_stop_distance;
    int regime;
    int score;
@@ -453,30 +458,45 @@ public:
       return(true);
      }
 
-   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,double max_spread_points,bool session_active,bool duplicate_position,int regime,int score,string &diag)
-      {
+   bool Place(const string symbol,const XDFSignal &signal,double lots,double spread_points,double expected_slip_points,double max_spread_points,bool session_active,bool duplicate_position,int regime,int score,string &diag)
+       {
        diag="";
        XDFNormalizedTradeRequest req;
        string normalize_reason;
        if(!BuildNormalizedRequest(symbol,signal,lots,spread_points,regime,score,req,normalize_reason))
-        {
+         {
          diag=StringFormat("PRE_SEND_FAILED category=order send failed reason=%s",normalize_reason);
           return(false);
         }
+       req.expected_slip_points=expected_slip_points;
+       if(req.point>0.0)
+         {
+          req.stop_points=req.stop_distance/req.point;
+          req.target_points=req.target_distance/req.point;
+          req.net_target_points=req.target_points-req.spread_points-req.expected_slip_points;
+          req.net_rr=(req.stop_points>0.0?req.net_target_points/req.stop_points:0.0);
+         }
+       double min_final_net_rr=(signal.family==SETUP_MEAN_REVERSION?1.00:0.90);
+       if(req.target_points<=req.stop_points || req.net_target_points<=0.0 || req.net_rr<min_final_net_rr)
+         {
+          diag=StringFormat("PRE_SEND_PAYOFF_FAIL symbol=%s family=%s dir=%s finalStopPts=%.1f finalTargetPts=%.1f finalSpreadPts=%.1f finalSlipPts=%.1f finalNetTargetPts=%.1f finalNetRR=%.2f minNetRR=%.2f",
+                            req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.stop_points,req.target_points,req.spread_points,req.expected_slip_points,req.net_target_points,req.net_rr,min_final_net_rr);
+          return(false);
+         }
        m_last_spread_points=spread_points;
 
        MqlTradeCheckResult check_result;
        string check_diag;
        string fail_category,fail_reason;
        if(!ValidatePreflight(req,max_spread_points,session_active,duplicate_position,fail_category,fail_reason,check_result,check_diag))
-        {
-         diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=FAIL category=%s reason=%s %s",
-                           req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,fail_category,fail_reason,check_diag);
-         return(false);
-        }
+         {
+          diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f slipPts=%.1f netRR=%.2f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=FAIL category=%s reason=%s %s",
+                            req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.expected_slip_points,req.net_rr,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,fail_category,fail_reason,check_diag);
+          return(false);
+         }
 
-       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=OK %s",
-                         req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,check_diag);
+       diag=StringFormat("PRE_SEND symbol=%s family=%s dir=%s lots=%.2f rawEntry=%.2f signalStop=%.2f signalTp=%.2f snappedEntry=%.2f finalEntry=%.2f finalStop=%.2f finalTp=%.2f spreadPts=%.1f slipPts=%.1f finalStopPts=%.1f finalTargetPts=%.1f finalNetTargetPts=%.1f finalNetRR=%.2f minStopDistance=%.5f stopDist=%.5f targetDist=%.5f deviation=%d tradeMode=%d fillMode=%d digits=%d point=%.5f stopsLevelPts=%d freezeLevelPts=%d vol[min=%.2f max=%.2f step=%.2f] regime=%s score=%d preflight=OK %s",
+                          req.symbol,req.family,(req.direction>0?"BUY":"SELL"),req.lots,req.raw_entry,req.raw_stop,req.raw_tp,req.snapped_entry,req.entry,req.stop,req.tp,req.spread_points,req.expected_slip_points,req.stop_points,req.target_points,req.net_target_points,req.net_rr,req.min_stop_distance,req.stop_distance,req.target_distance,req.deviation,(int)req.trade_mode,(int)req.filling_mode,req.digits,req.point,(int)req.stops_level_points,(int)req.freeze_level_points,req.volume_min,req.volume_max,req.volume_step,RegimeLabel(req.regime),req.score,check_diag);
 
        bool ok=false;
        if(req.direction>0)
