@@ -15,6 +15,12 @@ private:
    XDFORBSignal m_orb;
    XDFMeanReversionSignal m_mr;
    XDFSetupScorer m_scorer;
+   static const int XDF_MR_TREND_PENALTY;
+   static const int XDF_MR_EXCEPTION_BASE_SCORE_BONUS;
+   static const int XDF_MR_EXCEPTION_MIN_SCORE;
+   static const int XDF_MR_RESTRICTED_EXTREME_SCORE;
+   static const int XDF_ORB_STRONG_CONTINUATION_SCORE;
+   static const double XDF_ORB_STRONG_CONTINUATION_SLOPE;
    bool IsContinuationQualityORBSubtype(const string subtype) const
      {
       return(subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
@@ -78,12 +84,12 @@ private:
          reason="mr_subtype_not_exceptional";
          return(false);
         }
-      if(IsRestrictedMRSubtype(mr_signal.subtype) && mr_score_raw<90)
+      if(IsRestrictedMRSubtype(mr_signal.subtype) && mr_score_raw<XDF_MR_RESTRICTED_EXTREME_SCORE)
         {
          reason="mr_restricted_subtype_without_extreme_score";
          return(false);
         }
-      int required_score=MathMax(ctx.min_setup_score+20,75);
+      int required_score=MathMax(ctx.min_setup_score+XDF_MR_EXCEPTION_BASE_SCORE_BONUS,XDF_MR_EXCEPTION_MIN_SCORE);
       if(mr_score_raw<required_score)
         {
          reason=StringFormat("mr_score_raw_%d_below_%d",mr_score_raw,required_score);
@@ -94,7 +100,7 @@ private:
          reason="mr_reclaim_not_genuine";
          return(false);
         }
-      bool strong_orb_continuation=(orb_signal.valid && IsContinuationQualityORBSubtype(orb_signal.subtype) && orb_score_raw>=70 && ctx.m15.slope_strength>=0.08);
+      bool strong_orb_continuation=(orb_signal.valid && IsContinuationQualityORBSubtype(orb_signal.subtype) && orb_score_raw>=XDF_ORB_STRONG_CONTINUATION_SCORE && ctx.m15.slope_strength>=XDF_ORB_STRONG_CONTINUATION_SLOPE);
       if(strong_orb_continuation)
         {
          reason="strong_orb_continuation_present";
@@ -190,7 +196,7 @@ public:
 
       if(out_decision.regime==REGIME_TREND_CONTINUATION && out_decision.mr_signal.valid)
         {
-         out_decision.mr_score_final=MathMax(0,out_decision.mr_score_final-15);
+         out_decision.mr_score_final=MathMax(0,out_decision.mr_score_final-XDF_MR_TREND_PENALTY);
          out_decision.mr_penalty_applied=true;
         }
 
@@ -365,5 +371,12 @@ public:
       return(true);
      }
   };
+
+const int XDFStrategyDecisionEngine::XDF_MR_TREND_PENALTY=15;
+const int XDFStrategyDecisionEngine::XDF_MR_EXCEPTION_BASE_SCORE_BONUS=20;
+const int XDFStrategyDecisionEngine::XDF_MR_EXCEPTION_MIN_SCORE=75;
+const int XDFStrategyDecisionEngine::XDF_MR_RESTRICTED_EXTREME_SCORE=90;
+const int XDFStrategyDecisionEngine::XDF_ORB_STRONG_CONTINUATION_SCORE=70;
+const double XDFStrategyDecisionEngine::XDF_ORB_STRONG_CONTINUATION_SLOPE=0.08;
 
 #endif

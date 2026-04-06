@@ -102,8 +102,6 @@ int XDF_BarsSinceEntryM5(const datetime opened_at)
    if(opened_at<=0)
       return(0);
    int shift=iBarShift(g_symbol,PERIOD_M5,opened_at,false);
-   if(shift<0)
-      return(0);
    if(shift<=0)
       return(0);
    return(shift-1);

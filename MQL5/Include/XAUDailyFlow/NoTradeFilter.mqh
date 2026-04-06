@@ -22,6 +22,7 @@ private:
    static const double XDF_COMPRESSION_ATR_NEAR_FACTOR;
    static const double XDF_COMPRESSION_RANGE_ATR_RATIO;
    static const double XDF_COMPRESSION_BEHAVIOR_RATIO;
+   static const int XDF_ORB_SECONDARY_WIDTH_SCORE_PENALTY;
 public:
    XDFNoTradeFilter():m_avg_spread_points(0.0),m_avg_or_width_points(0.0),m_avg_bar_range_points(0.0){}
 
@@ -134,7 +135,7 @@ public:
               if(or_width_points>max_or && continuation_secondary_allow)
                 {
                  or_width_secondary_allow=true;
-                 or_width_score_penalty=8;
+                 or_width_score_penalty=XDF_ORB_SECONDARY_WIDTH_SCORE_PENALTY;
                 }
               else
                 {
@@ -179,5 +180,6 @@ const double XDFNoTradeFilter::XDF_OR_BEHAVIOR_MAX_MULTIPLIER=1.90;
 const double XDFNoTradeFilter::XDF_COMPRESSION_ATR_NEAR_FACTOR=1.15;
 const double XDFNoTradeFilter::XDF_COMPRESSION_RANGE_ATR_RATIO=0.35;
 const double XDFNoTradeFilter::XDF_COMPRESSION_BEHAVIOR_RATIO=0.55;
+const int XDFNoTradeFilter::XDF_ORB_SECONDARY_WIDTH_SCORE_PENALTY=8;
 
 #endif
