@@ -136,15 +136,16 @@ void OnStart()
 
       XDFDecision dec;
       bool ok=decision_engine.XDF_EvaluateDecision(filter,ctx,dec);
-      Print(StringFormat("[%s] ORW=%.2f VWAP=%.2f Regime=%s(%s) family=%d subtype=%s eligible_state=%d Selected=%d Score=%d selection_reason=%s orb_valid=%s orb_subtype=%s orb_reason_invalid=%s orb_score_raw=%d orb_score_final=%d mr_valid=%s mr_subtype=%s mr_reason_invalid=%s mr_score_raw=%d mr_score_final=%d mr_penalty=%s mr_exceptional=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f Blocker=%s detail=%s reject=%s allow=%s",
+      Print(StringFormat("[%s] ORW=%.2f VWAP=%.2f Regime=%s(%s) family=%d subtype=%s eligible_state=%d Selected=%d Score=%d selection_reason=%s orb_valid=%s orb_subtype=%s orb_reason_invalid=%s orb_score_raw=%d orb_score_final=%d mr_valid=%s mr_subtype=%s mr_reason_invalid=%s mr_score_raw=%d mr_score_final=%d mr_penalty=%s mr_exceptional=%s mr_block_reason=%s mr_override_reason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f Blocker=%s detail=%s reject=%s allow=%s",
                          TimeToString(ts,TIME_DATE|TIME_MINUTES),or_data.width,vwap.Value(),XDF_RegimeToString((int)dec.regime),dec.regime_reason,
                           (int)dec.selected_family,dec.selected_signal.subtype,(int)dec.eligible_family,(int)dec.selected_family,dec.selected_score.total,dec.selection_reason,
                           (dec.orb_signal.valid?"Y":"N"),dec.orb_subtype,dec.orb_signal.reason_invalid,dec.orb_score_raw,dec.orb_score_final,
                           (dec.mr_signal.valid?"Y":"N"),dec.mr_subtype,dec.mr_signal.reason_invalid,dec.mr_score_raw,dec.mr_score_final,
-                          (dec.mr_penalty_applied?"Y":"N"),(dec.mr_exceptional_allowed?"Y":"N"),
-                          (dec.or_width_secondary_allow?"Y":"N"),dec.or_width_primary_limit,dec.or_width_secondary_limit,dec.or_width_score_penalty,
-                          dec.stop_dist_points,dec.target_dist_points,dec.spread_points,dec.expected_slip_points,
-                          XDF_BlockerToString(dec.blocker.code),dec.blocker.message,dec.selected_reject_reason,(ok?"Y":"N")));
+                           (dec.mr_penalty_applied?"Y":"N"),(dec.mr_exceptional_allowed?"Y":"N"),
+                           dec.mr_block_reason,dec.mr_override_reason,
+                           (dec.or_width_secondary_allow?"Y":"N"),dec.or_width_primary_limit,dec.or_width_secondary_limit,dec.or_width_score_penalty,
+                           dec.stop_dist_points,dec.target_dist_points,dec.spread_points,dec.expected_slip_points,
+                           XDF_BlockerToString(dec.blocker.code),dec.blocker.message,dec.selected_reject_reason,(ok?"Y":"N")));
       }
 
    ind.Release();

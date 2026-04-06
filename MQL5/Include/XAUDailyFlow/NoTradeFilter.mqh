@@ -122,14 +122,14 @@ public:
          double min_or=MathMax(atr_points*XDF_OR_ATR_MIN_MULTIPLIER,m_avg_or_width_points*XDF_OR_BEHAVIOR_MIN_MULTIPLIER);
          double max_or=MathMin(atr_points*XDF_OR_ATR_MAX_MULTIPLIER,MathMax(m_avg_or_width_points*XDF_OR_BEHAVIOR_MAX_MULTIPLIER,min_or*1.2));
          or_width_primary_limit=max_or;
-         or_width_secondary_limit=max_or*1.25;
-         bool continuation_quality_subtype=(subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
-         bool continuation_secondary_allow=(family==SETUP_ORB_CONTINUATION &&
-                                           regime==REGIME_TREND_CONTINUATION &&
-                                           continuation_quality_subtype &&
-                                           orb_score_final>=70 &&
-                                           or_width_points>max_or &&
-                                           or_width_points<=or_width_secondary_limit);
+          or_width_secondary_limit=max_or*1.35;
+          bool continuation_quality_subtype=(subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_TWO_BAR_CONFIRM" || subtype=="ORB_BREAK_RETEST_HOLD" || subtype=="ORB_BREAK_PAUSE_CONTINUE");
+          bool continuation_secondary_allow=(family==SETUP_ORB_CONTINUATION &&
+                                            regime==REGIME_TREND_CONTINUATION &&
+                                            continuation_quality_subtype &&
+                                            orb_score_final>=65 &&
+                                            or_width_points>max_or &&
+                                            or_width_points<=or_width_secondary_limit);
            if(or_width_points<min_or || or_width_points>max_or)
              {
               if(or_width_points>max_or && continuation_secondary_allow)
@@ -180,6 +180,6 @@ const double XDFNoTradeFilter::XDF_OR_BEHAVIOR_MAX_MULTIPLIER=1.90;
 const double XDFNoTradeFilter::XDF_COMPRESSION_ATR_NEAR_FACTOR=1.15;
 const double XDFNoTradeFilter::XDF_COMPRESSION_RANGE_ATR_RATIO=0.35;
 const double XDFNoTradeFilter::XDF_COMPRESSION_BEHAVIOR_RATIO=0.55;
-const int XDFNoTradeFilter::XDF_ORB_SECONDARY_WIDTH_SCORE_PENALTY=8;
+const int XDFNoTradeFilter::XDF_ORB_SECONDARY_WIDTH_SCORE_PENALTY=6;
 
 #endif

@@ -179,9 +179,7 @@ bool XDF_BuildDecisionContext(const string symbol,
        out_ctx.entry_long=mid+spread_price*0.5;
        out_ctx.entry_short=mid-spread_price*0.5;
       }
-    out_ctx.expected_slippage_points=max_spread_points*0.45;
-    if(out_ctx.expected_slippage_points<1.0)
-       out_ctx.expected_slippage_points=1.0;
+    out_ctx.expected_slippage_points=MathMin(MathMax(2.0,out_ctx.spread_points*0.15),8.0);
     out_ctx.live_mode=live_mode;
     return(true);
    }

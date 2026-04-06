@@ -193,6 +193,8 @@ struct XDFDecision
    string            mr_subtype;
    string            selected_reject_reason;
    string            selection_reason;
+   string            mr_block_reason;
+   string            mr_override_reason;
    bool              eligible_orb;
    bool              eligible_mr;
    int               orb_score_raw;
