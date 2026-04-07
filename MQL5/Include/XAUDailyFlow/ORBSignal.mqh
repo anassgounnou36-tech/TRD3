@@ -6,9 +6,13 @@
 class XDFORBSignal
   {
 private:
+   // ATR-zone overlap threshold used to classify post-break churn near the OR boundary.
    static const double XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD;
+   // Hard cap factor for direct-break stop distance relative to ATR.
    static const double XDF_DIRECT_BREAK_STOP_CAP_ATR_FACTOR;
+   // Hard cap factor for direct-break stop distance relative to OR width.
    static const double XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR;
+   // ATR offset factor included in OR-width stop cap computation.
    static const double XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR;
    bool XDF_ValidateDirectBreakContext(const XDFSignal &s,
                                        const XDFOpeningRange &or_data,

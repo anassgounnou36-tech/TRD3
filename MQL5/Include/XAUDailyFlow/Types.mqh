@@ -63,7 +63,7 @@ const int XDF_ORB_SECONDARY_ALLOW_MIN_SCORE=65;
 const double XDF_ORB_WEAK_SUBTYPE_MIN_GROSS_RR=1.15;
 const double XDF_ORB_WEAK_SUBTYPE_NET_TARGET_SPREAD_FACTOR=1.5;
 const double XDF_ORB_DIRECT_BREAK_MIN_GROSS_RR=1.20;
-const double XDF_ORB_DIRECT_BREAK_NET_RR_UPLIFT=0.08;
+const double XDF_ORB_DIRECT_BREAK_ADDITIONAL_NET_RR=0.08;
 
 struct XDFSessionConfig
   {
@@ -277,7 +277,7 @@ double XDF_MinNetRRForFamilyRegimeSubtype(const XDFSetupFamily family,const stri
   {
    if(family==SETUP_ORB_CONTINUATION)
      {
-      double direct_break_uplift=(subtype=="ORB_DIRECT_BREAK"?XDF_ORB_DIRECT_BREAK_NET_RR_UPLIFT:0.0);
+      double direct_break_uplift=(subtype=="ORB_DIRECT_BREAK"?XDF_ORB_DIRECT_BREAK_ADDITIONAL_NET_RR:0.0);
       if(regime==REGIME_TREND_CONTINUATION)
          return(1.10+direct_break_uplift);
       if(regime==REGIME_MIXED)
