@@ -242,8 +242,8 @@ public:
          out_decision.mr_block_reason="mr_disabled_orb_only_mode";
          out_decision.mr_override_reason="";
 
-         bool requires_trend_continuation=(XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION);
-         if(requires_trend_continuation)
+         bool trend_continuation_not_met=(XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION);
+         if(trend_continuation_not_met)
            {
             out_decision.eligible_family=SETUP_NONE;
             out_decision.selected_family=SETUP_NONE;
