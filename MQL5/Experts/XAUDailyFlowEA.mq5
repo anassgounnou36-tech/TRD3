@@ -139,7 +139,7 @@ string XDF_EnabledORBSubtypes()
   {
    string out="";
    if(XDF_ENABLE_ORB_DIRECT_BREAK)
-      out="ORB_DIRECT_BREAK";
+      out=(out==""?"ORB_DIRECT_BREAK":out+",ORB_DIRECT_BREAK");
    if(XDF_ENABLE_ORB_TWO_BAR_CONFIRM)
       out=(out==""?"ORB_TWO_BAR_CONFIRM":out+",ORB_TWO_BAR_CONFIRM");
    if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE)
