@@ -29,6 +29,14 @@ private:
    static const double XDF_MR_REGIME_ORB_OVERRIDE_NET_RR;
    static const double XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE;
    static const bool XDF_ALLOW_ORB_EXCEPTION_IN_MEAN_REVERSION;
+   void DisableMRSignal(XDFSignal &mr) const
+     {
+      ZeroMemory(mr);
+      mr.valid=false;
+      mr.family=SETUP_NONE;
+      mr.subtype="MR_DISABLED";
+      mr.reason_invalid="mr_disabled_orb_only_mode";
+     }
    bool HasGenuineReclaim(const XDFSignal &mr) const
      {
       return(mr.reclaim_window_quality>=12 &&
@@ -162,13 +170,7 @@ public:
          if(XDF_ENABLE_MR)
             mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points,regime);
          else
-           {
-            ZeroMemory(mr);
-            mr.valid=false;
-            mr.family=SETUP_NONE;
-            mr.subtype="MR_DISABLED";
-            mr.reason_invalid="mr_disabled_orb_only_mode";
-           }
+            DisableMRSignal(mr);
         }
 
    XDFScoreBreakdown EvaluateScore(const XDFSignal &signal,const XDFOpeningRange &or_data,double atr,double spread_points,double vwap_dist_points,XDFRegime regime,const XDFM15Context &m15)
@@ -231,10 +233,7 @@ public:
       if(!XDF_ENABLE_MR)
         {
          out_decision.eligible_mr=false;
-         out_decision.mr_signal.valid=false;
-         out_decision.mr_signal.family=SETUP_NONE;
-         out_decision.mr_signal.subtype="MR_DISABLED";
-         out_decision.mr_signal.reason_invalid="mr_disabled_orb_only_mode";
+         DisableMRSignal(out_decision.mr_signal);
          out_decision.mr_subtype=out_decision.mr_signal.subtype;
          out_decision.mr_score_raw=0;
          out_decision.mr_score_final=0;
@@ -243,7 +242,8 @@ public:
          out_decision.mr_block_reason="mr_disabled_orb_only_mode";
          out_decision.mr_override_reason="";
 
-         if(XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION)
+         bool requires_trend_continuation=(XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION);
+         if(requires_trend_continuation)
            {
             out_decision.eligible_family=SETUP_NONE;
             out_decision.selected_family=SETUP_NONE;
