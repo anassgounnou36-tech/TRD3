@@ -594,7 +594,7 @@ void OnTick()
         // Defensive mismatch guard: should be impossible if ContextBuilder and runtime constants are in sync.
         g_last_blocker.code=BLOCKER_PAYOFF;
         g_last_blocker.message=StringFormat("BUILD_MISMATCH expected_slippage_points>%.1f",XDF_EXPECTED_SLIPPAGE_CAP_POINTS);
-        g_diag.Log("BUILD_MISMATCH",StringFormat("build=%s expectedSlipPts=%.2f symbol=%s regime=%d",XDF_BUILD_TAG,ctx.expected_slippage_points,g_symbol,g_last_regime));
+        g_diag.Log("BUILD_MISMATCH",StringFormat("build=%s expectedSlipPts=%.2f symbol=%s regime=%s",XDF_BUILD_TAG,ctx.expected_slippage_points,g_symbol,XDF_RegimeToString(g_last_regime)));
         return;
        }
     if(session_changed)

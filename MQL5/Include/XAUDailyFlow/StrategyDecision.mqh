@@ -575,6 +575,7 @@ const double XDFStrategyDecisionEngine::XDF_M15_STRONG_CONTINUATION_SLOPE=0.08;
 const int XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_SCORE=82;
 const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_NET_RR=1.15;
 const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE=0.08;
+// Production safety default: keep ORB fully blocked in MEAN_REVERSION unless explicitly enabled for research.
 const bool XDFStrategyDecisionEngine::XDF_ALLOW_ORB_EXCEPTION_IN_MEAN_REVERSION=false;
 
 #endif

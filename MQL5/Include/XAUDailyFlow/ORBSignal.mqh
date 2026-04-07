@@ -6,6 +6,10 @@
 class XDFORBSignal
   {
 private:
+   static const double XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD;
+   static const double XDF_DIRECT_BREAK_STOP_CAP_ATR_FACTOR;
+   static const double XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR;
+   static const double XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR;
    bool XDF_ValidateDirectBreakContext(const XDFSignal &s,
                                        const XDFOpeningRange &or_data,
                                        const MqlRates &b0,
@@ -52,15 +56,16 @@ private:
          return(false);
         }
 
-      double direct_break_stop_cap=MathMin(0.80*s.atr_points,0.60*s.or_width_points+0.10*s.atr_points);
+      double direct_break_stop_cap=MathMin(XDF_DIRECT_BREAK_STOP_CAP_ATR_FACTOR*s.atr_points,
+                                           XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR*s.or_width_points+XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR*s.atr_points);
       if(s.stop_points>direct_break_stop_cap)
         {
          reason="orb_direct_break_blocked_wide_stop";
          return(false);
         }
 
-      bool churn=((long_dir?(b2.low<=edge+atr*0.05):(b2.high>=edge-atr*0.05)) &&
-                  (long_dir?(b3.low<=edge+atr*0.05):(b3.high>=edge-atr*0.05)));
+      bool churn=((long_dir?(b2.low<=edge+atr*XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD):(b2.high>=edge-atr*XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD)) &&
+                  (long_dir?(b3.low<=edge+atr*XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD):(b3.high>=edge-atr*XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD)));
       double avg_range=((b1.high-b1.low)+(b2.high-b2.low)+(b3.high-b3.low))/3.0;
       bool compression=(avg_range<=atr*0.40);
       double extension=(long_dir?(b0.close-edge):(edge-b0.close));
@@ -387,5 +392,10 @@ public:
        return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,false));
       }
   };
+
+const double XDFORBSignal::XDF_DIRECT_BREAK_CHURN_ATR_THRESHOLD=0.05;
+const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_ATR_FACTOR=0.80;
+const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR=0.60;
+const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR=0.10;
 
 #endif
