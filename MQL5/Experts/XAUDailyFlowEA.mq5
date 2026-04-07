@@ -396,7 +396,8 @@ void XDF_TrackAcceptedSubtype(const XDFSignal &s)
 
 void XDF_TrackRejectReasonBuckets(const string reason)
   {
-   string r=StringToLower(reason);
+   string r=reason;
+   StringToLower(r);
    if(r=="")
       return;
    if(StringFind(r,"too_late")>=0)
