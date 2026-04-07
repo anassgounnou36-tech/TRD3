@@ -244,7 +244,11 @@ struct XDFDecision
    string            last_orb_reject_subtype;
    string            last_orb_reject_reason;
    string            last_orb_reject_stage;
-  };
+   bool              orb_subtype_formed;
+   bool              orb_postbreak_validator_entered;
+   bool              orb_rejected_by_postbreak;
+   string            orb_reject_stage;
+   };
 
 struct XDFSymbolSpecs
   {

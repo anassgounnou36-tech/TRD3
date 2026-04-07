@@ -854,7 +854,7 @@ public:
       if(!best.valid && has_rejected_postbreak)
          best=best_rejected_postbreak;
       if(!best.valid && best.reason_invalid=="")
-         MarkInvalid(best,"no_orb_subtype_match");
+         MarkInvalid(best,"NO_ORB_SUBTYPE_MATCH");
       return(best);
      }
 

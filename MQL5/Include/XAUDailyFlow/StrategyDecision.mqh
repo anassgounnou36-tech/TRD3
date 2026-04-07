@@ -186,6 +186,10 @@ public:
       out_decision.last_orb_reject_subtype="";
       out_decision.last_orb_reject_reason="";
       out_decision.last_orb_reject_stage="";
+      out_decision.orb_subtype_formed=false;
+      out_decision.orb_postbreak_validator_entered=false;
+      out_decision.orb_rejected_by_postbreak=false;
+      out_decision.orb_reject_stage="";
       bool both_sides=(ctx.session.touched_above && ctx.session.touched_below);
       out_decision.regime=m_regime.Detect(ctx.or_data,ctx.atr_m5,ctx.vwap,ctx.mid_price,both_sides,ctx.m15,out_decision.regime_reason);
 
@@ -200,11 +204,30 @@ public:
       EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
-      if(out_decision.orb_signal.postbreak_reject_reason!="")
+      out_decision.orb_subtype_formed=(out_decision.orb_subtype!="");
+      out_decision.orb_postbreak_validator_entered=(out_decision.orb_signal.postbreak_quality_pass ||
+                                                    out_decision.orb_signal.postbreak_reject_reason!="" ||
+                                                    out_decision.orb_signal.confirm_buffer_pts>0.0 ||
+                                                    out_decision.orb_signal.bars_since_initial_break>0 ||
+                                                    out_decision.orb_signal.postbreak_quality_score>0.0);
+      out_decision.orb_rejected_by_postbreak=(out_decision.orb_subtype_formed &&
+                                              out_decision.orb_postbreak_validator_entered &&
+                                              !out_decision.orb_signal.postbreak_quality_pass &&
+                                              out_decision.orb_signal.postbreak_reject_reason!="");
+      if(out_decision.orb_rejected_by_postbreak)
         {
          out_decision.last_orb_reject_subtype=(out_decision.orb_signal.subtype!=""?out_decision.orb_signal.subtype:out_decision.orb_subtype);
          out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
          out_decision.last_orb_reject_stage="POSTBREAK";
+         out_decision.orb_reject_stage="POSTBREAK";
+        }
+      else if(!out_decision.orb_subtype_formed &&
+              (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
+               out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"))
+        {
+         out_decision.last_orb_reject_reason="NO_ORB_SUBTYPE_MATCH";
+         out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
+         out_decision.orb_reject_stage="NO_SUBTYPE_FORMED";
         }
 
       if(out_decision.orb_signal.valid)
@@ -334,21 +357,21 @@ public:
 
       if(!out_decision.selected_signal.valid)
         {
-         bool orb_postbreak_failed=(out_decision.orb_signal.postbreak_reject_reason!="" &&
-                                    !out_decision.orb_signal.postbreak_quality_pass);
+         bool orb_postbreak_failed=out_decision.orb_rejected_by_postbreak;
          if(orb_postbreak_failed && !out_decision.eligible_mr)
            {
-            out_decision.selected_family=SETUP_ORB_CONTINUATION;
-            out_decision.selected_signal=out_decision.orb_signal;
-            out_decision.selected_score=out_decision.orb_score;
+             out_decision.selected_family=SETUP_ORB_CONTINUATION;
+             out_decision.selected_signal=out_decision.orb_signal;
+             out_decision.selected_score=out_decision.orb_score;
             out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
             out_decision.blocker.message=out_decision.orb_signal.postbreak_reject_reason;
-            out_decision.last_orb_reject_subtype=(out_decision.orb_signal.subtype!=""?out_decision.orb_signal.subtype:out_decision.orb_subtype);
-            out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
-            out_decision.last_orb_reject_stage="POSTBREAK";
-            out_decision.selection_reason="ORB_POSTBREAK_REJECT";
-            out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
-            return(false);
+             out_decision.last_orb_reject_subtype=(out_decision.orb_signal.subtype!=""?out_decision.orb_signal.subtype:out_decision.orb_subtype);
+             out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+             out_decision.last_orb_reject_stage="POSTBREAK";
+             out_decision.orb_reject_stage="POSTBREAK";
+             out_decision.selection_reason="ORB_POSTBREAK_REJECT";
+             out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+             return(false);
            }
          bool any_valid_signal=(out_decision.orb_signal.valid || out_decision.mr_signal.valid);
          if(out_decision.regime==REGIME_TREND_CONTINUATION && out_decision.mr_signal.valid && !out_decision.eligible_mr && !out_decision.eligible_orb)
@@ -380,6 +403,17 @@ public:
             out_decision.blocker.message=StringFormat("payoff_gate orb_ok=%s orb=%s mr_ok=%s mr=%s",(orb_payoff_ok?"Y":"N"),orb_payoff_detail,(mr_payoff_ok?"Y":"N"),mr_payoff_detail);
             out_decision.selected_reject_reason="payoff";
            }
+         else if(!out_decision.orb_subtype_formed &&
+                 (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
+                  out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"))
+           {
+            out_decision.blocker.code=BLOCKER_NO_SETUP;
+            out_decision.blocker.message="NO_ORB_SUBTYPE_MATCH";
+            out_decision.selected_reject_reason="NO_ORB_SUBTYPE_MATCH";
+            out_decision.last_orb_reject_reason="NO_ORB_SUBTYPE_MATCH";
+            out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
+            out_decision.orb_reject_stage="NO_SUBTYPE_FORMED";
+           }
          else
            {
             out_decision.blocker.code=BLOCKER_NO_SETUP;
@@ -390,19 +424,23 @@ public:
         }
 
       if(out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-         (!out_decision.selected_signal.postbreak_quality_pass || out_decision.selected_signal.postbreak_reject_reason!=""))
+         out_decision.orb_rejected_by_postbreak &&
+         out_decision.orb_subtype_formed &&
+         out_decision.last_orb_reject_reason!="" &&
+         out_decision.last_orb_reject_subtype!="")
         {
-         string postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
+         string postbreak_reason=out_decision.last_orb_reject_reason;
+         if(postbreak_reason=="")
+            postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
          if(postbreak_reason=="")
             postbreak_reason=out_decision.selected_signal.reason_invalid;
-         if(postbreak_reason=="")
-            postbreak_reason="ORB_POSTBREAK_QUALITY_FAILED";
          if(out_decision.last_orb_reject_subtype=="")
             out_decision.last_orb_reject_subtype=(out_decision.selected_signal.subtype!=""?out_decision.selected_signal.subtype:out_decision.orb_subtype);
          if(out_decision.last_orb_reject_reason=="")
             out_decision.last_orb_reject_reason=postbreak_reason;
          if(out_decision.last_orb_reject_stage=="")
             out_decision.last_orb_reject_stage="POSTBREAK";
+         out_decision.orb_reject_stage="POSTBREAK";
          out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
          out_decision.blocker.message=postbreak_reason;
          out_decision.selected_reject_reason=postbreak_reason;

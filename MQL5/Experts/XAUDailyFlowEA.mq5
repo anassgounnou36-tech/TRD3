@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v1.5.11-continuation-rebalance-and-truthful-subtype-rejects-1"
+#define XDF_BUILD_TAG "v1.5.12-fix-false-postbreak-routing-and-restore-orb-flow-1"
 
 input string InpSymbol = "";
 
@@ -733,11 +733,14 @@ void OnTick()
                                                   XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
                                                  decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,decision.selected_signal.net_rr));
           }
-        if(decision.blocker.code==BLOCKER_POSTBREAK_QUALITY)
+        if(decision.blocker.code==BLOCKER_POSTBREAK_QUALITY &&
+           decision.orb_rejected_by_postbreak &&
+           decision.last_orb_reject_subtype!="" &&
+           decision.last_orb_reject_reason!="")
           {
-           g_rejected_by_postbreak_quality_count++;
-           g_diag.Log("POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
-                                                      XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
+            g_rejected_by_postbreak_quality_count++;
+            g_diag.Log("POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                       XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
                                                       decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
           }
          if(decision.orb_signal.postbreak_reject_reason!="")
@@ -773,13 +776,15 @@ void OnTick()
         if(decision.fallback_attempted)
            g_diag.Log((decision.fallback_accepted?"FAMILY_FALLBACK_ACCEPT":"FAMILY_FALLBACK_REJECT"),decision.fallback_reason);
         g_counters.setups_rejected++;
-      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbSource=%s orbReasonInvalid=%s orbPostbreakReject=%s orbPostbreakPass=%s orbPostbreakScore=%.1f orbConfirmBufferPts=%.2f orbBarsSinceBreak=%d orbRejectSubtype=%s orbRejectReason=%s orbRejectStage=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbSource=%s orbReasonInvalid=%s orbSubtypeFormed=%s orbPostbreakEntered=%s orbRejectedByPostbreak=%s orbRejectStageState=%s orbPostbreakReject=%s orbPostbreakPass=%s orbPostbreakScore=%.1f orbConfirmBufferPts=%.2f orbBarsSinceBreak=%d orbRejectSubtype=%s orbRejectReason=%s orbRejectStage=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
                                                 XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
                                                 (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                               (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_signal.reason,decision.orb_signal.reason_invalid,decision.orb_signal.postbreak_reject_reason,(decision.orb_signal.postbreak_quality_pass?"Y":"N"),decision.orb_signal.postbreak_quality_score,decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break,
-                                               decision.last_orb_reject_subtype,decision.last_orb_reject_reason,decision.last_orb_reject_stage,decision.orb_score_raw,decision.orb_score_final,
-                                               (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
-                                               (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
+                                                (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_signal.reason,decision.orb_signal.reason_invalid,
+                                                (decision.orb_subtype_formed?"Y":"N"),(decision.orb_postbreak_validator_entered?"Y":"N"),(decision.orb_rejected_by_postbreak?"Y":"N"),decision.orb_reject_stage,
+                                                decision.orb_signal.postbreak_reject_reason,(decision.orb_signal.postbreak_quality_pass?"Y":"N"),decision.orb_signal.postbreak_quality_score,decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break,
+                                                decision.last_orb_reject_subtype,decision.last_orb_reject_reason,decision.last_orb_reject_stage,decision.orb_score_raw,decision.orb_score_final,
+                                                (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
+                                                (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
                                                decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
                                               (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
                                               decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,
