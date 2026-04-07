@@ -155,9 +155,9 @@ private:
       return(a.subtype_quality>=b.subtype_quality);
       }
 public:
-   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const XDFRegime regime,const bool both_sides_violated,XDFSignal &orb,XDFSignal &mr)
+   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const XDFRegime regime,const int m15_trend_alignment,const bool both_sides_violated,XDFSignal &orb,XDFSignal &mr)
         {
-         orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points,regime,both_sides_violated);
+         orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points,regime,m15_trend_alignment,both_sides_violated);
          mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points,regime);
         }
 
@@ -203,7 +203,7 @@ public:
       long stops_level=0;
       SymbolInfoInteger(ctx.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
       double min_stop_distance=MathMax(ctx.point*5.0,(double)stops_level*ctx.point);
-      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,out_decision.orb_signal,out_decision.mr_signal);
+      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,ctx.m15.trend_alignment,both_sides,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
       if(out_decision.orb_signal.valid &&
@@ -255,12 +255,15 @@ public:
       out_decision.mr_score_raw=out_decision.mr_score.total;
       out_decision.orb_score_final=out_decision.orb_score_raw;
       out_decision.mr_score_final=out_decision.mr_score_raw;
-      if(out_decision.orb_signal.valid &&
-         out_decision.regime==REGIME_TREND_CONTINUATION &&
-         !both_sides &&
-         out_decision.orb_signal.clean_trend_lane &&
-         out_decision.orb_signal.postbreak_quality_score>=85.0)
-         out_decision.orb_score_final+=2;
+      bool clean_trend_boost=(out_decision.orb_signal.valid &&
+                              out_decision.orb_signal.clean_trend_lane &&
+                              (out_decision.orb_signal.subtype=="ORB_BREAK_PAUSE_CONTINUE" ||
+                               out_decision.orb_signal.subtype=="ORB_BREAK_RETEST_HOLD" ||
+                               out_decision.orb_signal.subtype=="ORB_TWO_BAR_CONFIRM") &&
+                              out_decision.orb_signal.postbreak_quality_score>=82.0 &&
+                              out_decision.orb_signal.net_rr>=1.20);
+      if(clean_trend_boost)
+         out_decision.orb_score_final+=1;
       out_decision.mr_penalty_applied=false;
       out_decision.mr_exceptional_allowed=false;
 

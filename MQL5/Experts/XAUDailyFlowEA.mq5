@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v2.0.0-lifecycle-rebuild-clean-trend-orb-edge-1"
+#define XDF_BUILD_TAG "v2.0.1-clean-trend-orb-restoration-1"
 
 input string InpSymbol = "";
 
