@@ -62,6 +62,7 @@ const double XDF_EXPECTED_SLIPPAGE_CAP_POINTS=8.0;
 const int XDF_ORB_SECONDARY_ALLOW_MIN_SCORE=65;
 const double XDF_ORB_WEAK_SUBTYPE_MIN_GROSS_RR=1.15;
 const double XDF_ORB_WEAK_SUBTYPE_NET_TARGET_SPREAD_FACTOR=1.5;
+const double XDF_ORB_DIRECT_BREAK_MIN_GROSS_RR=1.20;
 
 struct XDFSessionConfig
   {
@@ -275,13 +276,14 @@ double XDF_MinNetRRForFamilyRegimeSubtype(const XDFSetupFamily family,const stri
   {
    if(family==SETUP_ORB_CONTINUATION)
      {
+      double direct_break_uplift=(subtype=="ORB_DIRECT_BREAK"?0.08:0.0);
       if(regime==REGIME_TREND_CONTINUATION)
-         return(1.10);
+         return(1.10+direct_break_uplift);
       if(regime==REGIME_MIXED)
-         return(1.15);
+         return(1.15+direct_break_uplift);
       if(regime==REGIME_MEAN_REVERSION)
-         return(1.20);
-      return(1.15);
+         return(1.20+direct_break_uplift);
+      return(1.15+direct_break_uplift);
      }
    if(family==SETUP_MEAN_REVERSION)
      {
@@ -374,6 +376,11 @@ bool XDF_PassesGeometryPolicy(const XDFSetupFamily family,
         }
       if((subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_BREAK_PAUSE_CONTINUE") &&
          (metrics.gross_rr<XDF_ORB_WEAK_SUBTYPE_MIN_GROSS_RR || metrics.net_target_points<XDF_ORB_WEAK_SUBTYPE_NET_TARGET_SPREAD_FACTOR*spread_points))
+        {
+         reason="ORB_GEOMETRY_COST_THIN";
+         return(false);
+        }
+      if(subtype=="ORB_DIRECT_BREAK" && metrics.gross_rr<XDF_ORB_DIRECT_BREAK_MIN_GROSS_RR)
         {
          reason="ORB_GEOMETRY_COST_THIN";
          return(false);

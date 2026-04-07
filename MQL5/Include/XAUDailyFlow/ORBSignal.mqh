@@ -6,6 +6,73 @@
 class XDFORBSignal
   {
 private:
+   bool XDF_ValidateDirectBreakContext(const XDFSignal &s,
+                                       const XDFOpeningRange &or_data,
+                                       const MqlRates &b0,
+                                       const MqlRates &b1,
+                                       const MqlRates &b2,
+                                       const MqlRates &b3,
+                                       const double atr,
+                                       const double spread_points,
+                                       const bool both_sides_violated,
+                                       string &reason) const
+     {
+      reason="";
+      if(both_sides_violated)
+        {
+         reason="orb_direct_break_blocked_both_sides";
+         return(false);
+        }
+
+      if(atr<=0.0 || s.atr_points<=0.0 || s.or_width_points<=0.0)
+        {
+         reason="orb_direct_break_blocked_no_close_confirm";
+         return(false);
+        }
+
+      double spread_price=spread_points*(s.atr_points>0.0 && s.spread_points>0.0 ? atr/s.atr_points : 0.0);
+      double confirm_buffer=MathMax(MathMax(or_data.width*0.06,atr*0.08),spread_price*1.20);
+      double min_body=MathMax(atr*0.10,or_data.width*0.05);
+      bool long_dir=(s.direction>0);
+      double edge=(long_dir?or_data.high:or_data.low);
+      bool b1_confirm=(long_dir?(b1.close>=edge+confirm_buffer):(b1.close<=edge-confirm_buffer));
+      if(!b1_confirm)
+        {
+         reason="orb_direct_break_blocked_no_close_confirm";
+         return(false);
+        }
+
+      double b1_body=(b1.close-b1.open);
+      double b0_body=(b0.close-b0.open);
+      bool body_ok=(long_dir?(b1_body>=min_body && b0_body>=min_body*0.8):(b1_body<=-min_body && b0_body<=-min_body*0.8));
+      bool b0_buffer_ok=(long_dir?(b0.close>=edge+confirm_buffer):(b0.close<=edge-confirm_buffer));
+      if(!body_ok || !b0_buffer_ok)
+        {
+         reason="orb_direct_break_blocked_low_buffer";
+         return(false);
+        }
+
+      double direct_break_stop_cap=MathMin(0.80*s.atr_points,0.60*s.or_width_points+0.10*s.atr_points);
+      if(s.stop_points>direct_break_stop_cap)
+        {
+         reason="orb_direct_break_blocked_wide_stop";
+         return(false);
+        }
+
+      bool churn=((long_dir?(b2.low<=edge+atr*0.05):(b2.high>=edge-atr*0.05)) &&
+                  (long_dir?(b3.low<=edge+atr*0.05):(b3.high>=edge-atr*0.05)));
+      double avg_range=((b1.high-b1.low)+(b2.high-b2.low)+(b3.high-b3.low))/3.0;
+      bool compression=(avg_range<=atr*0.40);
+      double extension=(long_dir?(b0.close-edge):(edge-b0.close));
+      bool late_extension=(extension>=atr*0.85);
+      if((churn && compression) || (churn && late_extension))
+        {
+         reason="orb_direct_break_blocked_late_fragility";
+         return(false);
+        }
+
+      return(true);
+     }
    void XDF_SetGeometryMetrics(XDFSignal &s,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
      {
       if(point<=0.0)
@@ -174,12 +241,13 @@ public:
                         double atr,
                         bool ema_long_ok,
                         bool ema_short_ok,
-                        double min_stop_distance,
-                        double entry_long,
-                        double entry_short,
-                        const double point,
-                        const double spread_points,
-                        const double expected_slippage_points)
+                         double min_stop_distance,
+                         double entry_long,
+                         double entry_short,
+                         const double point,
+                         const double spread_points,
+                         const double expected_slippage_points,
+                         const bool both_sides_violated)
      {
       XDFSignal best;
       ZeroMemory(best);
@@ -193,7 +261,7 @@ public:
 
       MqlRates bars[];
       ArraySetAsSeries(bars,true);
-      if(CopyRates(symbol,PERIOD_M5,shift,6,bars)<4)
+      if(CopyRates(symbol,PERIOD_M5,shift,8,bars)<5)
         {
          MarkInvalid(best,"insufficient_closed_bars");
          return(best);
@@ -202,6 +270,7 @@ public:
       MqlRates b0=bars[0];
       MqlRates b1=bars[1];
       MqlRates b2=bars[2];
+      MqlRates b3=bars[3];
       double ext_limit=atr*2.0;
       double or_width=MathMax(or_data.width,atr*0.25);
       XDFSignal candidate;
@@ -211,26 +280,36 @@ public:
          double ext=(b0.close-or_data.high);
          if(ext<ext_limit*1.1)
            {
-            double stop=XDF_LongORBStructuralStop(MathMin(b0.low,b1.low),atr,or_data,entry_long,min_stop_distance);
-            double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.00);
-            candidate=BuildSignal(1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_long_ok?15:8),b0,entry_long,stop,tp,vwap,ExtensionPenalty(ext,atr));
-            XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points);
-            if(IsBetter(candidate,best))
-               best=candidate;
-           }
+             double stop=XDF_LongORBStructuralStop(MathMin(b0.low,b1.low),atr,or_data,entry_long,min_stop_distance);
+             double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.00);
+             candidate=BuildSignal(1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_long_ok?15:8),b0,entry_long,stop,tp,vwap,ExtensionPenalty(ext,atr));
+             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points))
+               {
+                string direct_break_reason;
+                if(!XDF_ValidateDirectBreakContext(candidate,or_data,b0,b1,b2,b3,atr,spread_points,both_sides_violated,direct_break_reason))
+                   MarkInvalid(candidate,direct_break_reason);
+               }
+             if(IsBetter(candidate,best))
+                best=candidate;
+            }
         }
       if(ema_short_ok && b0.close<or_data.low && b0.close<vwap)
         {
          double ext=(or_data.low-b0.close);
          if(ext<ext_limit*1.1)
            {
-            double stop=XDF_ShortORBStructuralStop(MathMax(b0.high,b1.high),atr,or_data,entry_short,min_stop_distance);
-            double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.00);
-            candidate=BuildSignal(-1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_short_ok?15:8),b0,entry_short,stop,tp,vwap,ExtensionPenalty(ext,atr));
-            XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points);
-            if(IsBetter(candidate,best))
-               best=candidate;
-           }
+             double stop=XDF_ShortORBStructuralStop(MathMax(b0.high,b1.high),atr,or_data,entry_short,min_stop_distance);
+             double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.00);
+             candidate=BuildSignal(-1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_short_ok?15:8),b0,entry_short,stop,tp,vwap,ExtensionPenalty(ext,atr));
+             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points))
+               {
+                string direct_break_reason;
+                if(!XDF_ValidateDirectBreakContext(candidate,or_data,b0,b1,b2,b3,atr,spread_points,both_sides_violated,direct_break_reason))
+                   MarkInvalid(candidate,direct_break_reason);
+               }
+             if(IsBetter(candidate,best))
+                best=candidate;
+            }
         }
 
       if(ema_long_ok && (b2.close>or_data.high || b1.close>or_data.high) &&
@@ -303,10 +382,10 @@ public:
       return(best);
      }
 
-   XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
-     {
-      return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0));
-     }
+    XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
+      {
+       return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,false));
+      }
   };
 
 #endif

@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v1.5.7-runtime-regime-geometry-enforcement-1"
+#define XDF_BUILD_TAG "v1.5.8-orb-prod-block-direct-break-hardening-1"
 
 input string InpSymbol = "";
 
@@ -108,6 +108,11 @@ int g_rejected_by_geometry_count=0;
 int g_rejected_by_presend_payoff_count=0;
 int g_orb_blocked_in_mr_count=0;
 int g_mr_blocked_in_trend_count=0;
+int g_orb_direct_break_blocked_both_sides_count=0;
+int g_orb_direct_break_blocked_no_close_confirm_count=0;
+int g_orb_direct_break_blocked_low_buffer_count=0;
+int g_orb_direct_break_blocked_wide_stop_count=0;
+int g_orb_direct_break_blocked_late_fragility_count=0;
 string g_last_guard_action="";
 string g_last_guard_reason="";
 datetime g_last_guard_bar=0;
@@ -255,6 +260,23 @@ bool XDF_IsGeometryInvalidReason(const string reason)
           StringFind(reason,"stop_cap_fail")>=0 ||
           StringFind(reason,"rr_fail")>=0 ||
           StringFind(reason,"target_le_stop")>=0);
+  }
+
+void XDF_TrackORBDirectBreakVeto(const string reason)
+  {
+   if(reason=="orb_direct_break_blocked_both_sides")
+      g_orb_direct_break_blocked_both_sides_count++;
+   else if(reason=="orb_direct_break_blocked_no_close_confirm")
+      g_orb_direct_break_blocked_no_close_confirm_count++;
+   else if(reason=="orb_direct_break_blocked_low_buffer")
+      g_orb_direct_break_blocked_low_buffer_count++;
+   else if(reason=="orb_direct_break_blocked_wide_stop")
+      g_orb_direct_break_blocked_wide_stop_count++;
+   else if(reason=="orb_direct_break_blocked_late_fragility")
+      g_orb_direct_break_blocked_late_fragility_count++;
+   else
+      return;
+   g_diag.Log("ORB_DIRECT_BREAK_VETO",reason);
   }
 
 void XDF_LogMgmtGuard(const string action,const string reason,const int bars_since_entry,const double mfe_r,const XDFSetupFamily family,const string subtype,const datetime guard_bar)
@@ -498,8 +520,8 @@ void OnDeinit(const int reason)
    g_indicators.Release();
    double avg_orb_net_rr=(g_accepted_orb_count>0?g_accepted_orb_net_rr_sum/g_accepted_orb_count:0.0);
    double avg_mr_net_rr=(g_accepted_mr_count>0?g_accepted_mr_net_rr_sum/g_accepted_mr_count:0.0);
-   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d",
-                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count));
+   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_blocked_no_close_confirm=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d orb_direct_break_blocked_late_fragility=%d",
+                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count,g_orb_direct_break_blocked_late_fragility_count));
    g_diag.Log("DEINIT",StringFormat("reason=%d",reason));
    g_diag.Shutdown();
    Comment("");
@@ -614,6 +636,7 @@ void OnTick()
 
    XDFDecision decision;
      bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
+    XDF_TrackORBDirectBreakVeto(decision.orb_signal.reason_invalid);
     if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
        g_geometry_invalidated_candidates++;
     if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
@@ -624,7 +647,7 @@ void OnTick()
     g_last_score=decision.selected_score.total;
     g_last_blocker=decision.blocker;
     if(decision.orb_block_reason=="MEAN_REVERSION_DEFAULT_BLOCK")
-       g_orb_blocked_in_mr_count++;
+        g_orb_blocked_in_mr_count++;
     if(decision.mr_block_reason=="TREND_CONTINUATION_DEFAULT_BLOCK")
        g_mr_blocked_in_trend_count++;
     g_diag.Log("REGIME",StringFormat("regime=%s reason=%s bothSides=%s m15=%s",
@@ -738,8 +761,7 @@ void OnTick()
       }
 
     if(decision.regime==REGIME_MEAN_REVERSION &&
-       chosen.family==SETUP_ORB_CONTINUATION &&
-       decision.orb_override_reason!="EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION")
+       chosen.family==SETUP_ORB_CONTINUATION)
       {
        g_rejected_by_regime_count++;
        g_orb_blocked_in_mr_count++;

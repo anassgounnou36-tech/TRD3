@@ -27,6 +27,7 @@ private:
    static const int XDF_MR_REGIME_ORB_OVERRIDE_SCORE;
    static const double XDF_MR_REGIME_ORB_OVERRIDE_NET_RR;
    static const double XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE;
+   static const bool XDF_ALLOW_ORB_EXCEPTION_IN_MEAN_REVERSION;
    bool HasGenuineReclaim(const XDFSignal &mr) const
      {
       return(mr.reclaim_window_quality>=12 &&
@@ -154,11 +155,11 @@ private:
       return(a.subtype_quality>=b.subtype_quality);
      }
 public:
-   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,XDFSignal &orb,XDFSignal &mr)
-      {
-       orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points);
-       mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points);
-      }
+   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const bool both_sides_violated,XDFSignal &orb,XDFSignal &mr)
+       {
+        orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points,both_sides_violated);
+        mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points);
+       }
 
    XDFScoreBreakdown EvaluateScore(const XDFSignal &signal,const XDFOpeningRange &or_data,double atr,double spread_points,double vwap_dist_points,XDFRegime regime,const XDFM15Context &m15)
      {
@@ -193,7 +194,7 @@ public:
       long stops_level=0;
       SymbolInfoInteger(ctx.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
       double min_stop_distance=MathMax(ctx.point*5.0,(double)stops_level*ctx.point);
-      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.orb_signal,out_decision.mr_signal);
+      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,both_sides,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
 
@@ -219,17 +220,21 @@ public:
 
       if(out_decision.regime==REGIME_MEAN_REVERSION && out_decision.orb_signal.valid)
         {
-         bool subtype_allowed=(out_decision.orb_signal.subtype=="ORB_BREAK_RETEST_HOLD" || out_decision.orb_signal.subtype=="ORB_TWO_BAR_CONFIRM");
-         bool weak_subtype=(out_decision.orb_signal.subtype=="ORB_DIRECT_BREAK" || out_decision.orb_signal.subtype=="ORB_BREAK_PAUSE_CONTINUE");
-         bool strong_m15=(ctx.m15.slope_strength>=XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE);
-         bool breakout_override=(subtype_allowed &&
-                                !weak_subtype &&
-                                out_decision.orb_score_final>=XDF_MR_REGIME_ORB_OVERRIDE_SCORE &&
-                                out_decision.orb_signal.net_rr>=XDF_MR_REGIME_ORB_OVERRIDE_NET_RR &&
-                                strong_m15);
+         bool breakout_override=false;
+         if(XDF_ALLOW_ORB_EXCEPTION_IN_MEAN_REVERSION)
+           {
+            bool subtype_allowed=(out_decision.orb_signal.subtype=="ORB_BREAK_RETEST_HOLD" || out_decision.orb_signal.subtype=="ORB_TWO_BAR_CONFIRM");
+            bool weak_subtype=(out_decision.orb_signal.subtype=="ORB_DIRECT_BREAK" || out_decision.orb_signal.subtype=="ORB_BREAK_PAUSE_CONTINUE");
+            bool strong_m15=(ctx.m15.slope_strength>=XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE);
+            breakout_override=(subtype_allowed &&
+                               !weak_subtype &&
+                               out_decision.orb_score_final>=XDF_MR_REGIME_ORB_OVERRIDE_SCORE &&
+                               out_decision.orb_signal.net_rr>=XDF_MR_REGIME_ORB_OVERRIDE_NET_RR &&
+                               strong_m15);
+           }
          if(!breakout_override)
            {
-           out_decision.eligible_orb=false;
+            out_decision.eligible_orb=false;
            out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
            out_decision.orb_signal.valid=false;
            out_decision.orb_signal.reason_invalid="MEAN_REVERSION_DEFAULT_BLOCK";
@@ -505,21 +510,11 @@ public:
         }
 
       if(out_decision.regime==REGIME_MEAN_REVERSION &&
-         out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-         out_decision.orb_override_reason!="EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION")
+         out_decision.selected_family==SETUP_ORB_CONTINUATION)
         {
          out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
          out_decision.blocker.code=BLOCKER_REGIME;
          out_decision.blocker.message="runtime_orb_blocked_in_mean_reversion";
-         out_decision.selected_reject_reason="runtime_orb_blocked_in_mean_reversion";
-         return(false);
-        }
-      if(out_decision.regime==REGIME_MEAN_REVERSION &&
-         out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-         out_decision.or_width_secondary_allow)
-        {
-         out_decision.blocker.code=BLOCKER_REGIME;
-         out_decision.blocker.message="runtime_orb_blocked_secondary_width_allowance";
          out_decision.selected_reject_reason="runtime_orb_blocked_in_mean_reversion";
          return(false);
         }
@@ -580,5 +575,6 @@ const double XDFStrategyDecisionEngine::XDF_M15_STRONG_CONTINUATION_SLOPE=0.08;
 const int XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_SCORE=82;
 const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_NET_RR=1.15;
 const double XDFStrategyDecisionEngine::XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE=0.08;
+const bool XDFStrategyDecisionEngine::XDF_ALLOW_ORB_EXCEPTION_IN_MEAN_REVERSION=false;
 
 #endif
