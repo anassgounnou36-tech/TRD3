@@ -325,6 +325,19 @@ public:
 
       if(!out_decision.selected_signal.valid)
         {
+         bool orb_postbreak_failed=(out_decision.orb_signal.postbreak_reject_reason!="" &&
+                                    !out_decision.orb_signal.postbreak_quality_pass);
+         if(orb_postbreak_failed && !out_decision.eligible_mr)
+           {
+            out_decision.selected_family=SETUP_ORB_CONTINUATION;
+            out_decision.selected_signal=out_decision.orb_signal;
+            out_decision.selected_score=out_decision.orb_score;
+            out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
+            out_decision.blocker.message=out_decision.orb_signal.postbreak_reject_reason;
+            out_decision.selection_reason="ORB_POSTBREAK_REJECT";
+            out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+            return(false);
+           }
          bool any_valid_signal=(out_decision.orb_signal.valid || out_decision.mr_signal.valid);
          if(out_decision.regime==REGIME_TREND_CONTINUATION && out_decision.mr_signal.valid && !out_decision.eligible_mr && !out_decision.eligible_orb)
            {

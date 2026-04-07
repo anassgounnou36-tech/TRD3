@@ -175,7 +175,93 @@ private:
             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
             return(false);
            }
-         postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
+          postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
+          return(true);
+         }
+
+      if(subtype=="ORB_BREAK_RETEST_HOLD")
+        {
+         if(both_sides_violated)
+           {
+            reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
+            return(false);
+           }
+         if(bars_since_break_out>4)
+           {
+            reason_out="ORB_POSTBREAK_LATE_FRAGILITY";
+            return(false);
+           }
+
+         double reentry_tol_pts=MathMax(0.08*atr_pts,1.00*spread_pts);
+         double retest_touch_tol_pts=MathMax(0.06*atr_pts,0.80*spread_pts);
+         double reentry_tol_price=reentry_tol_pts*point;
+         double retest_touch_tol_price=retest_touch_tol_pts*point;
+
+         bool saw_retest_touch=false;
+         bool saw_shallow_touch_without_hold=false;
+         bool saw_deep_reentry=false;
+         int retest_idx=-1;
+         int closes_beyond_after_break=0;
+         int post_break_end=MathMin(first_break_idx-1,copied-1);
+         for(int i=post_break_end; i>=0; --i)
+           {
+            bool close_beyond=XDF_CloseBeyondEdge(bars[i],long_dir,edge);
+            if(close_beyond)
+               closes_beyond_after_break++;
+
+            bool touch_near_edge=(long_dir?(bars[i].low<=edge+retest_touch_tol_price):(bars[i].high>=edge-retest_touch_tol_price));
+            bool deep_reentry=(long_dir?(bars[i].low<edge-reentry_tol_price):(bars[i].high>edge+reentry_tol_price));
+            if(deep_reentry)
+               saw_deep_reentry=true;
+            if(touch_near_edge)
+              {
+               saw_retest_touch=true;
+               retest_idx=i;
+               if(!close_beyond)
+                  saw_shallow_touch_without_hold=true;
+              }
+           }
+
+         if(!saw_retest_touch || retest_idx<0)
+           {
+            reason_out="ORB_POSTBREAK_RETEST_NO_ACCEPTANCE";
+            return(false);
+           }
+         if(saw_deep_reentry || saw_shallow_touch_without_hold)
+           {
+            reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
+            return(false);
+           }
+         if(closes_beyond_after_break<2)
+           {
+            reason_out="ORB_POSTBREAK_RETEST_UNSTABLE_CONTINUATION";
+            return(false);
+           }
+
+         int closes_after_retest=0;
+         for(int i=retest_idx-1; i>=0; --i)
+           {
+            if(XDF_CloseBeyondEdge(bars[i],long_dir,edge))
+               closes_after_retest++;
+           }
+         if(closes_after_retest<1)
+           {
+            reason_out="ORB_POSTBREAK_RETEST_NO_ACCEPTANCE";
+            return(false);
+           }
+
+         confirm_buffer_pts_out=MathMax(0.14*atr_pts,1.50*spread_pts);
+         if(confirm_close_pts<confirm_buffer_pts_out)
+           {
+            reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
+            return(false);
+           }
+         if(body_ratio<0.45 || !close_location_ok)
+           {
+            reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
+            return(false);
+           }
+         postbreak_quality_score_out=62.0+MathMin(18.0,confirm_close_pts)+MathMin(12.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
          return(true);
         }
 
@@ -361,6 +447,26 @@ public:
       if(s.subtype=="")
          s.subtype="NONE";
      }
+   void TrackRejectedPostBreakCandidate(const XDFSignal &candidate,XDFSignal &best_rejected,bool &has_rejected) const
+     {
+      if(candidate.postbreak_reject_reason=="")
+         return;
+      if(!has_rejected)
+        {
+         best_rejected=candidate;
+         has_rejected=true;
+         return;
+        }
+      if(candidate.raw_structure_quality>best_rejected.raw_structure_quality)
+        {
+         best_rejected=candidate;
+         return;
+        }
+      if(candidate.raw_structure_quality<best_rejected.raw_structure_quality)
+         return;
+      if(candidate.net_rr>best_rejected.net_rr+0.01)
+         best_rejected=candidate;
+     }
 
    XDFSignal EvaluateAt(const string symbol,
                         const int shift,
@@ -379,7 +485,10 @@ public:
                          const bool both_sides_violated)
      {
       XDFSignal best;
+      XDFSignal best_rejected_postbreak;
+      bool has_rejected_postbreak=false;
       ZeroMemory(best);
+      ZeroMemory(best_rejected_postbreak);
       best.family=SETUP_ORB_CONTINUATION;
       best.subtype="NONE";
       if(!or_data.valid || atr<=0.0 || shift<1)
@@ -427,6 +536,7 @@ public:
                   {
                    candidate.postbreak_reject_reason=postbreak_reason;
                    MarkInvalid(candidate,postbreak_reason);
+                   TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
                   }
                 }
              if(IsBetter(candidate,best))
@@ -456,6 +566,7 @@ public:
                   {
                    candidate.postbreak_reject_reason=postbreak_reason;
                    MarkInvalid(candidate,postbreak_reason);
+                   TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
                   }
                 }
              if(IsBetter(candidate,best))
@@ -486,6 +597,7 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -514,6 +626,7 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -542,6 +655,7 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -569,6 +683,7 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -597,6 +712,7 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -624,13 +740,16 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
+               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
             best=candidate;
         }
 
-      if(!best.valid)
+      if(!best.valid && has_rejected_postbreak)
+         best=best_rejected_postbreak;
+      if(!best.valid && best.reason_invalid=="")
          MarkInvalid(best,"no_orb_subtype_match");
       return(best);
      }
