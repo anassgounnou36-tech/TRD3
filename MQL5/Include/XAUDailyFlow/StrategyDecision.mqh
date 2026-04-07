@@ -387,6 +387,10 @@ public:
 
       if(!out_decision.selected_signal.valid)
         {
+         bool orb_no_subtype_path=(!out_decision.orb_subtype_formed ||
+                                   out_decision.orb_subtype=="" ||
+                                   out_decision.orb_subtype=="NONE" ||
+                                   out_decision.orb_subtype=="NO_SUBTYPE");
          bool orb_postbreak_failed=out_decision.orb_rejected_by_postbreak;
          bool postbreak_identity_ok=(out_decision.orb_subtype_formed &&
                                      out_decision.orb_postbreak_validator_entered &&
@@ -396,6 +400,21 @@ public:
                                      out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
                                      out_decision.last_orb_reject_reason!="" &&
                                      out_decision.last_orb_reject_reason!="(null)");
+         if(orb_no_subtype_path)
+           {
+            out_decision.blocker.code=BLOCKER_NO_SETUP;
+            out_decision.blocker.message="no_orb_subtype_match";
+            out_decision.selected_reject_reason="no_orb_subtype_match";
+            out_decision.last_orb_reject_subtype="NO_SUBTYPE";
+            out_decision.last_orb_reject_reason="no_orb_subtype_match";
+            out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
+            out_decision.orb_reject_stage="NO_SUBTYPE_FORMED";
+            out_decision.orb_subtype_formed=false;
+            out_decision.orb_postbreak_validator_entered=false;
+            out_decision.orb_rejected_by_postbreak=false;
+            out_decision.orb_lifecycle=ORB_LIFE_NONE;
+            return(false);
+           }
          if(orb_postbreak_failed && postbreak_identity_ok && !out_decision.eligible_mr)
            {
             out_decision.selected_family=SETUP_ORB_CONTINUATION;
@@ -463,12 +482,15 @@ public:
         }
 
       if(out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-         out_decision.orb_subtype_formed &&
-         out_decision.orb_postbreak_validator_entered &&
-         out_decision.orb_rejected_by_postbreak &&
-         out_decision.last_orb_reject_subtype!="" &&
-         out_decision.last_orb_reject_subtype!="NONE" &&
-         out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
+          out_decision.orb_subtype_formed &&
+          out_decision.orb_postbreak_validator_entered &&
+          out_decision.orb_rejected_by_postbreak &&
+          out_decision.selected_signal.subtype!="" &&
+          out_decision.selected_signal.subtype!="NONE" &&
+          out_decision.selected_signal.subtype!="NO_SUBTYPE" &&
+          out_decision.last_orb_reject_subtype!="" &&
+          out_decision.last_orb_reject_subtype!="NONE" &&
+          out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
          out_decision.last_orb_reject_reason!="" &&
          out_decision.last_orb_reject_reason!="(null)")
         {

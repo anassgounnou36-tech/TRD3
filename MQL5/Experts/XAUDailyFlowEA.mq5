@@ -852,9 +852,9 @@ void OnTick()
             decision.last_orb_reject_reason!="(null)")
            {
             g_rejected_by_postbreak_quality_count++;
-            g_diag.Log("ORB_REJECT",StringFormat("| stage=POSTBREAK subtype=%s regime=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
-                                                       decision.last_orb_reject_subtype,XDF_RegimeToString((int)decision.regime),decision.selected_reject_reason,
-                                                       decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
+            g_diag.Log("ORB_POSTBREAK_REJECT",StringFormat("| subtype=%s regime=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                           decision.last_orb_reject_subtype,XDF_RegimeToString((int)decision.regime),decision.selected_reject_reason,
+                                                           decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
             XDF_TrackFinalORBReject(decision);
             orb_reject_counted=true;
            }

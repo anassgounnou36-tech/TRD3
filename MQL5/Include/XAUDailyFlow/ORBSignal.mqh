@@ -1005,11 +1005,25 @@ public:
             best=candidate;
         }
 
-      if(!best.valid && has_rejected_postbreak)
+      if(!best.valid &&
+         has_rejected_postbreak &&
+         best_rejected_postbreak.subtype!="" &&
+         best_rejected_postbreak.subtype!="NONE" &&
+         best_rejected_postbreak.subtype!="NO_SUBTYPE" &&
+         best_rejected_postbreak.reason_invalid!="" &&
+         best_rejected_postbreak.reason_invalid!="(null)")
+        {
          best=best_rejected_postbreak;
-      if(!best.valid && best.reason_invalid=="")
+        }
+      if(!best.valid)
         {
          best.subtype="NO_SUBTYPE";
+         best.valid=false;
+         best.postbreak_quality_pass=false;
+         best.postbreak_reject_reason="";
+         best.confirm_buffer_pts=0.0;
+         best.bars_since_initial_break=0;
+         best.clean_trend_lane=false;
          best.orb_lifecycle=ORB_LIFE_NONE;
          MarkInvalid(best,"no_orb_subtype_match");
         }
