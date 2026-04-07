@@ -179,6 +179,10 @@ public:
       out_decision.blocker.code=BLOCKER_NONE;
       out_decision.blocker.message="";
       out_decision.selection_reason="";
+      out_decision.last_orb_reject_subtype="";
+      out_decision.last_orb_reject_reason="";
+      out_decision.last_orb_reject_confirm_buffer_pts=0.0;
+      out_decision.last_orb_reject_bars_since_initial_break=0;
       out_decision.mr_block_reason="";
       out_decision.mr_override_reason="";
       out_decision.orb_block_reason="";
@@ -197,6 +201,13 @@ public:
       EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
+      if(out_decision.orb_signal.postbreak_reject_reason!="")
+        {
+         out_decision.last_orb_reject_subtype=out_decision.orb_signal.subtype;
+         out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+         out_decision.last_orb_reject_confirm_buffer_pts=out_decision.orb_signal.confirm_buffer_pts;
+         out_decision.last_orb_reject_bars_since_initial_break=out_decision.orb_signal.bars_since_initial_break;
+        }
 
       if(out_decision.orb_signal.valid)
          out_decision.orb_score=EvaluateScore(out_decision.orb_signal,ctx.or_data,ctx.atr_m5,ctx.spread_points,vwap_dist_points,out_decision.regime,ctx.m15);

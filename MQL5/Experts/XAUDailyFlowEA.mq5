@@ -705,12 +705,20 @@ void OnTick()
                                                       XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
                                                       decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
           }
-        if(decision.orb_signal.postbreak_reject_reason!="")
-          {
-           g_diag.Log("ORB_POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reject_reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
-                                                          XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.orb_signal.subtype,decision.orb_signal.postbreak_reject_reason,
-                                                          decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break));
-          }
+         if(decision.last_orb_reject_subtype!="" &&
+            decision.last_orb_reject_subtype!="NONE" &&
+            decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
+            decision.last_orb_reject_reason!="" &&
+            decision.last_orb_reject_reason!="(null)")
+           {
+            g_diag.Log("ORB_POSTBREAK_REJECT",
+                       StringFormat("| subtype=%s regime=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                    decision.last_orb_reject_subtype,
+                                    XDF_RegimeToString((int)decision.regime),
+                                    decision.last_orb_reject_reason,
+                                    decision.last_orb_reject_confirm_buffer_pts,
+                                    decision.last_orb_reject_bars_since_initial_break));
+           }
         if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
           {
             g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",

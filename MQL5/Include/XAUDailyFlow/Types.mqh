@@ -216,6 +216,10 @@ struct XDFDecision
    string            orb_subtype;
    string            mr_subtype;
    string            selected_reject_reason;
+   string            last_orb_reject_subtype;
+   string            last_orb_reject_reason;
+   double            last_orb_reject_confirm_buffer_pts;
+   int               last_orb_reject_bars_since_initial_break;
    string            selection_reason;
    string            mr_block_reason;
    string            mr_override_reason;
