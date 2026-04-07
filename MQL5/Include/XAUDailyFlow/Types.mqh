@@ -241,6 +241,9 @@ struct XDFDecision
    double            target_dist_points;
    double            spread_points;
    double            expected_slip_points;
+   string            last_orb_reject_subtype;
+   string            last_orb_reject_reason;
+   string            last_orb_reject_stage;
   };
 
 struct XDFSymbolSpecs

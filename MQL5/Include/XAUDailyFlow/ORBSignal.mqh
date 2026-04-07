@@ -44,6 +44,7 @@ private:
                                         const bool both_sides_violated,
                                         const double stop_pts,
                                         const double or_width_pts,
+                                        const double net_rr,
                                         string &reason_out,
                                         double &confirm_buffer_pts_out,
                                         int &bars_since_break_out,
@@ -135,33 +136,34 @@ private:
          return(true);
         }
 
-      if(subtype=="ORB_BREAK_PAUSE_CONTINUE" && regime==REGIME_MIXED)
+      if(subtype=="ORB_BREAK_PAUSE_CONTINUE")
         {
-         if(both_sides_violated)
-           {
-            reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
-            return(false);
-           }
-         if(bars_since_break_out>4)
-           {
-            reason_out="ORB_POSTBREAK_LATE_FRAGILITY";
-            return(false);
-           }
-         double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
-         double reentry_tol_price=reentry_tol_pts*point;
-         bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
+          if(both_sides_violated)
+            {
+             reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
+             return(false);
+            }
+          int hard_cap=(regime==REGIME_MIXED?2:4);
+          if(bars_since_break_out>hard_cap)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_TOO_LATE";
+             return(false);
+            }
+          double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
+          double reentry_tol_price=reentry_tol_pts*point;
+          bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
          bool path2_break=XDF_CloseBeyondEdge(bars[2],long_dir,edge);
          bool path2_retest_ok=(long_dir?(bars[1].low>=edge-reentry_tol_price):(bars[1].high<=edge+reentry_tol_price));
          bool path2_reconfirm=XDF_CloseBeyondEdge(bars[0],long_dir,edge);
          bool path2=(path2_break && path2_retest_ok && path2_reconfirm);
-         if(!path1 && !path2)
-           {
-            reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
-            return(false);
-           }
-         if(!path2_retest_ok && path2_break)
-           {
-            reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
+          if(!path1 && !path2)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+             return(false);
+            }
+          if(!path2_retest_ok && path2_break)
+            {
+             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
          confirm_buffer_pts_out=MathMax(0.12*atr_pts,1.25*spread_pts);
@@ -170,12 +172,41 @@ private:
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
             return(false);
            }
-         if(body_ratio<0.35 || !close_location_ok)
-           {
-            reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
-            return(false);
-           }
+          if(body_ratio<0.35 || !close_location_ok)
+            {
+             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
+             return(false);
+            }
+
+          double boundary_churn_band=MathMax(0.06*atr_pts,0.8*spread_pts)*point;
+          int boundary_churn_count=0;
+          int churn_bars=MathMin(4,copied);
+          for(int i=0; i<churn_bars; ++i)
+            {
+             bool close_beyond=XDF_CloseBeyondEdge(bars[i],long_dir,edge);
+             double close_dist=MathAbs(bars[i].close-edge);
+             if(!close_beyond && close_dist<=boundary_churn_band)
+                boundary_churn_count++;
+            }
+          if(boundary_churn_count>=2 && !path1)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+             return(false);
+            }
+
           postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
+          if((regime==REGIME_TREND_CONTINUATION && bars_since_break_out==4) ||
+             (regime==REGIME_MIXED && bars_since_break_out==2))
+            {
+             double late_buffer_min=(regime==REGIME_MIXED?MathMax(0.20*atr_pts,1.6*spread_pts):MathMax(0.18*atr_pts,1.5*spread_pts));
+             double late_score_min=(regime==REGIME_MIXED?92.0:90.0);
+             double late_net_rr_min=(regime==REGIME_MIXED?1.45:1.35);
+             if(postbreak_quality_score_out<late_score_min || net_rr<late_net_rr_min || confirm_close_pts<late_buffer_min)
+               {
+                reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
+                return(false);
+               }
+            }
           return(true);
          }
 
@@ -186,11 +217,11 @@ private:
             reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
             return(false);
            }
-         if(bars_since_break_out>4)
-           {
-            reason_out="ORB_POSTBREAK_LATE_FRAGILITY";
-            return(false);
-           }
+          if(bars_since_break_out>5)
+            {
+             reason_out="ORB_RETEST_HOLD_TOO_LATE";
+             return(false);
+            }
 
          double reentry_tol_pts=MathMax(0.08*atr_pts,1.00*spread_pts);
          double retest_touch_tol_pts=MathMax(0.06*atr_pts,0.80*spread_pts);
@@ -527,7 +558,7 @@ public:
                 double confirm_buffer_pts=0.0;
                 int bars_since_break=0;
                 double postbreak_score=0.0;
-                bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+                bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
                 candidate.confirm_buffer_pts=confirm_buffer_pts;
                 candidate.bars_since_initial_break=bars_since_break;
                 candidate.postbreak_quality_score=postbreak_score;
@@ -557,7 +588,7 @@ public:
                 double confirm_buffer_pts=0.0;
                 int bars_since_break=0;
                 double postbreak_score=0.0;
-                bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+                bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
                 candidate.confirm_buffer_pts=confirm_buffer_pts;
                 candidate.bars_since_initial_break=bars_since_break;
                 candidate.postbreak_quality_score=postbreak_score;
@@ -588,7 +619,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
@@ -617,7 +648,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
@@ -646,7 +677,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
@@ -674,7 +705,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
@@ -703,7 +734,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
@@ -731,7 +762,7 @@ public:
             double confirm_buffer_pts=0.0;
             int bars_since_break=0;
             double postbreak_score=0.0;
-            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
+            bool postbreak_ok=XDF_ValidateORBPostBreakQuality(symbol,shift,or_data,candidate.subtype,regime,candidate.direction,candidate.atr_points,candidate.spread_points,both_sides_violated,candidate.stop_points,candidate.or_width_points,candidate.net_rr,postbreak_reason,confirm_buffer_pts,bars_since_break,postbreak_score);
             candidate.confirm_buffer_pts=confirm_buffer_pts;
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
