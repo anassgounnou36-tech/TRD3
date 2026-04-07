@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v1.5.8-orb-prod-block-direct-break-hardening-1"
+#define XDF_BUILD_TAG "v1.5.8a-source-geometry-regime-fix-1"
 
 input string InpSymbol = "";
 
@@ -693,11 +693,11 @@ void OnTick()
         if(decision.fallback_attempted)
            g_diag.Log((decision.fallback_accepted?"FAMILY_FALLBACK_ACCEPT":"FAMILY_FALLBACK_REJECT"),decision.fallback_reason);
         g_counters.setups_rejected++;
-      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbSource=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
                                                XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
                                               (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                              (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
-                                              (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
+                                              (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_signal.reason,decision.orb_score_raw,decision.orb_score_final,
+                                              (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
                                               (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
                                               decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
                                               (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
@@ -713,11 +713,11 @@ void OnTick()
     g_diag.Log("SCORE",StringFormat("range=%d context=%d trigger=%d exec=%d vwap=%d noise=%d total=%d family=%d",
                                     score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,
                                     score.vwap_quality,score.noise_penalty,score.total,(int)chosen.family));
-    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
+    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbSource=%s orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
                                              (int)decision.eligible_family,(int)decision.selected_family,decision.selection_reason,
                                              (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                             decision.orb_subtype,decision.orb_score_raw,decision.orb_score_final,
-                                             decision.mr_subtype,decision.mr_score_raw,decision.mr_score_final,
+                                             decision.orb_subtype,decision.orb_signal.reason,decision.orb_score_raw,decision.orb_score_final,
+                                             decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
                                              (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
                                              decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
                                              (decision.or_width_secondary_allow?"Y":"N"),decision.or_width_primary_limit,decision.or_width_secondary_limit,decision.or_width_score_penalty,
@@ -783,8 +783,8 @@ void OnTick()
       g_counters.setups_accepted++;
       g_last_blocker.code=BLOCKER_NONE;
       g_last_blocker.message="trade placed";
-        g_diag.Log("TRADE",StringFormat("build=%s regime=%s family=%d subtype=%s score=%d stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f grossRR=%.2f netRR=%.2f selection_reason=%s side=%s lots=%.2f",
-                                        XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),(int)chosen.family,chosen.subtype,score.total,
+        g_diag.Log("TRADE",StringFormat("build=%s regime=%s family=%d subtype=%s source_geom_regime=%s score=%d stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f grossRR=%.2f netRR=%.2f selection_reason=%s side=%s lots=%.2f",
+                                        XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),(int)chosen.family,chosen.subtype,chosen.reason,score.total,
                                         chosen.stop_points,chosen.target_points,chosen.spread_points,chosen.slip_points,chosen.gross_rr,chosen.net_rr,decision.selection_reason,
                                         (chosen.direction>0?"BUY":"SELL"),lots));
        g_runtime_session.last_setup_family=chosen.family;

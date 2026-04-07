@@ -96,30 +96,31 @@ private:
       s.net_target_points=s.target_points-spread_points-slip_points;
       s.net_rr=(s.stop_points>0.0?s.net_target_points/s.stop_points:0.0);
      }
-   bool XDF_ValidateORBGeometry(XDFSignal &s,const string subtype,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
-     {
-      if(!s.valid || point<=0.0 || atr<=0.0 || or_width<=0.0)
-        {
-         s.valid=false;
-         s.reason_invalid="ORB_GEOMETRY_INVALID_INPUTS";
-         return(false);
-        }
+   bool XDF_ValidateORBGeometry(XDFSignal &s,const string subtype,const XDFRegime regime,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
+      {
+       if(!s.valid || point<=0.0 || atr<=0.0 || or_width<=0.0)
+         {
+          s.valid=false;
+          s.reason_invalid=StringFormat("ORB_GEOMETRY_INVALID_INPUTS source_geom_regime=%d",(int)regime);
+          return(false);
+         }
 
-      XDF_SetGeometryMetrics(s,point,atr,or_width,spread_points,slip_points);
-      XDFGeometryMetrics metrics;
-      string reason;
-      bool pass=XDF_PassesGeometryPolicy(SETUP_ORB_CONTINUATION,subtype,REGIME_TREND_CONTINUATION,s.stop_points,s.target_points,s.spread_points,s.slip_points,s.atr_points,s.or_width_points,metrics,reason);
-      s.gross_rr=metrics.gross_rr;
-      s.net_target_points=metrics.net_target_points;
-      s.net_rr=metrics.net_rr;
-      if(!pass)
-        {
-         s.valid=false;
-         s.reason_invalid=reason;
-         return(false);
-        }
-      return(true);
-     }
+       XDF_SetGeometryMetrics(s,point,atr,or_width,spread_points,slip_points);
+       XDFGeometryMetrics metrics;
+       string reason;
+       bool pass=XDF_PassesGeometryPolicy(SETUP_ORB_CONTINUATION,subtype,regime,s.stop_points,s.target_points,s.spread_points,s.slip_points,s.atr_points,s.or_width_points,metrics,reason);
+       s.gross_rr=metrics.gross_rr;
+       s.net_target_points=metrics.net_target_points;
+       s.net_rr=metrics.net_rr;
+       s.reason=StringFormat("%s source_geom_regime=%d",subtype,(int)regime);
+       if(!pass)
+         {
+          s.valid=false;
+          s.reason_invalid=StringFormat("%s source_geom_regime=%d",reason,(int)regime);
+          return(false);
+         }
+       return(true);
+      }
    double XDF_LongORBStructuralStop(const double structure_low,const double atr,const XDFOpeningRange &or_data,const double entry,const double min_stop_distance)
      {
       double stop=structure_low-atr*0.08;
@@ -256,6 +257,7 @@ public:
                          const double point,
                          const double spread_points,
                          const double expected_slippage_points,
+                         const XDFRegime regime,
                          const bool both_sides_violated)
      {
       XDFSignal best;
@@ -292,7 +294,7 @@ public:
              double stop=XDF_LongORBStructuralStop(MathMin(b0.low,b1.low),atr,or_data,entry_long,min_stop_distance);
              double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.00);
              candidate=BuildSignal(1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_long_ok?15:8),b0,entry_long,stop,tp,vwap,ExtensionPenalty(ext,atr));
-             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points))
+             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",regime,point,atr,or_width,spread_points,expected_slippage_points))
                {
                 string direct_break_reason;
                 if(!XDF_ValidateDirectBreakContext(candidate,or_data,b0,b1,b2,b3,atr,spread_points,both_sides_violated,direct_break_reason))
@@ -310,7 +312,7 @@ public:
              double stop=XDF_ShortORBStructuralStop(MathMax(b0.high,b1.high),atr,or_data,entry_short,min_stop_distance);
              double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.00);
              candidate=BuildSignal(-1,"ORB_DIRECT_BREAK",26,0,18,12,(ema_short_ok?15:8),b0,entry_short,stop,tp,vwap,ExtensionPenalty(ext,atr));
-             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",point,atr,or_width,spread_points,expected_slippage_points))
+             if(XDF_ValidateORBGeometry(candidate,"ORB_DIRECT_BREAK",regime,point,atr,or_width,spread_points,expected_slippage_points))
                {
                 string direct_break_reason;
                 if(!XDF_ValidateDirectBreakContext(candidate,or_data,b0,b1,b2,b3,atr,spread_points,both_sides_violated,direct_break_reason))
@@ -328,7 +330,7 @@ public:
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
          double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.10);
          candidate=BuildSignal(1,"ORB_BREAK_RETEST_HOLD",25,19,15,16,(ema_long_ok?14:8),b0,entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_RETEST_HOLD",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_RETEST_HOLD",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -339,7 +341,7 @@ public:
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
          double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.10);
          candidate=BuildSignal(-1,"ORB_BREAK_RETEST_HOLD",25,19,15,16,(ema_short_ok?14:8),b0,entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_RETEST_HOLD",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_RETEST_HOLD",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -350,7 +352,7 @@ public:
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
          double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.05);
          candidate=BuildSignal(1,"ORB_TWO_BAR_CONFIRM",23,8,21,12,(ema_long_ok?14:8),b0,entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_TWO_BAR_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_TWO_BAR_CONFIRM",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -360,7 +362,7 @@ public:
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
          double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.05);
          candidate=BuildSignal(-1,"ORB_TWO_BAR_CONFIRM",23,8,21,12,(ema_short_ok?14:8),b0,entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_TWO_BAR_CONFIRM",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_TWO_BAR_CONFIRM",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -371,7 +373,7 @@ public:
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
          double tp=XDF_LongTargetFromStructure(or_data,b0,vwap,entry_long,stop,1.10);
          candidate=BuildSignal(1,"ORB_BREAK_PAUSE_CONTINUE",22,12,16,20,(ema_long_ok?13:8),b0,entry_long,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_PAUSE_CONTINUE",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_PAUSE_CONTINUE",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -381,7 +383,7 @@ public:
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
          double tp=XDF_ShortTargetFromStructure(or_data,b0,vwap,entry_short,stop,1.10);
          candidate=BuildSignal(-1,"ORB_BREAK_PAUSE_CONTINUE",22,12,16,20,(ema_short_ok?13:8),b0,entry_short,stop,tp,vwap,0.0);
-         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_PAUSE_CONTINUE",point,atr,or_width,spread_points,expected_slippage_points);
+         XDF_ValidateORBGeometry(candidate,"ORB_BREAK_PAUSE_CONTINUE",regime,point,atr,or_width,spread_points,expected_slippage_points);
          if(IsBetter(candidate,best))
             best=candidate;
         }
@@ -393,7 +395,7 @@ public:
 
     XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
       {
-       return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,false));
+       return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,REGIME_MIXED,false));
       }
   };
 
