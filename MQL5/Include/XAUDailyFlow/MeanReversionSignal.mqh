@@ -6,6 +6,16 @@
 class XDFMeanReversionSignal
   {
 private:
+   string XDF_LocalRegimeToString(const XDFRegime regime) const
+     {
+      if(regime==REGIME_TREND_CONTINUATION)
+         return("TREND_CONTINUATION");
+      if(regime==REGIME_MEAN_REVERSION)
+         return("MEAN_REVERSION");
+      if(regime==REGIME_MIXED)
+         return("MIXED");
+      return("NO_TRADE");
+     }
    void XDF_SetGeometryMetrics(XDFSignal &s,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
      {
       if(point<=0.0)
@@ -19,6 +29,11 @@ private:
       s.gross_rr=(s.stop_points>0.0?s.target_points/s.stop_points:0.0);
       s.net_target_points=s.target_points-spread_points-slip_points;
       s.net_rr=(s.stop_points>0.0?s.net_target_points/s.stop_points:0.0);
+      s.postbreak_quality_score=0.0;
+      s.postbreak_quality_pass=true;
+      s.postbreak_reject_reason="";
+      s.confirm_buffer_pts=0.0;
+      s.bars_since_initial_break=0;
      }
    double XDF_LongMRStructuralStop(const double sweep_low,const double atr,const double entry)
      {
@@ -39,7 +54,7 @@ private:
        if(!s.valid || point<=0.0 || atr<=0.0)
          {
           s.valid=false;
-          s.reason_invalid=StringFormat("MR_GEOMETRY_INVALID_INPUTS source_geom_regime=%d",(int)regime);
+          s.reason_invalid=StringFormat("MR_GEOMETRY_INVALID_INPUTS source_geom_regime=%s",XDF_LocalRegimeToString(regime));
           return(false);
          }
 
@@ -50,11 +65,11 @@ private:
        s.gross_rr=metrics.gross_rr;
        s.net_target_points=metrics.net_target_points;
        s.net_rr=metrics.net_rr;
-       s.reason=StringFormat("%s source_geom_regime=%d",subtype,(int)regime);
+       s.reason=StringFormat("%s source_geom_regime=%s",subtype,XDF_LocalRegimeToString(regime));
        if(!pass)
          {
           s.valid=false;
-          s.reason_invalid=StringFormat("%s source_geom_regime=%d",reason,(int)regime);
+          s.reason_invalid=StringFormat("%s source_geom_regime=%s",reason,XDF_LocalRegimeToString(regime));
           return(false);
          }
        return(true);
@@ -146,6 +161,11 @@ public:
       s.raw_context_quality=raw_context_quality;
       s.raw_extension_penalty=(int)MathRound(extension_penalty);
       s.raw_structure_quality=subtype_quality+confirmation_quality+reclaim_window_quality+level_hold_quality;
+      s.postbreak_quality_score=0.0;
+      s.postbreak_quality_pass=true;
+      s.postbreak_reject_reason="";
+      s.confirm_buffer_pts=0.0;
+      s.bars_since_initial_break=0;
       return(s);
      }
 

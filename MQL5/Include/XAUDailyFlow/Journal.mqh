@@ -28,6 +28,7 @@ string XDF_BlockerToString(XDFBlocker blocker)
    if(blocker==BLOCKER_SESSION_CLOSED) return("BLOCKER_SESSION_CLOSED");
    if(blocker==BLOCKER_NO_SETUP) return("BLOCKER_NO_SETUP");
    if(blocker==BLOCKER_PAYOFF) return("BLOCKER_PAYOFF");
+   if(blocker==BLOCKER_POSTBREAK_QUALITY) return("BLOCKER_POSTBREAK_QUALITY");
    return("BLOCKER_UNKNOWN");
   }
 

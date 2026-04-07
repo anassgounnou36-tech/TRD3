@@ -364,6 +364,20 @@ public:
          return(false);
         }
 
+      if(out_decision.selected_family==SETUP_ORB_CONTINUATION &&
+         (!out_decision.selected_signal.postbreak_quality_pass || out_decision.selected_signal.postbreak_reject_reason!=""))
+        {
+         string postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
+         if(postbreak_reason=="")
+            postbreak_reason=out_decision.selected_signal.reason_invalid;
+         if(postbreak_reason=="")
+            postbreak_reason="ORB_POSTBREAK_QUALITY_FAILED";
+         out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
+         out_decision.blocker.message=postbreak_reason;
+         out_decision.selected_reject_reason=postbreak_reason;
+         return(false);
+        }
+
       if(out_decision.selected_family==SETUP_ORB_CONTINUATION)
         {
          out_decision.stop_dist_points=orb_stop_pts;

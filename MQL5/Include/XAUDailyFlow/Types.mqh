@@ -46,7 +46,8 @@ enum XDFBlocker
    BLOCKER_EXECUTION_PREFLIGHT = 13,
    BLOCKER_SESSION_CLOSED      = 14,
    BLOCKER_NO_SETUP            = 15,
-   BLOCKER_PAYOFF              = 16
+   BLOCKER_PAYOFF              = 16,
+   BLOCKER_POSTBREAK_QUALITY   = 17
   };
 
 enum XDFSessionId
@@ -130,7 +131,12 @@ struct XDFSignal
    double            gross_rr;
    double            net_target_points;
    double            net_rr;
-  };
+   double            postbreak_quality_score;
+   bool              postbreak_quality_pass;
+   string            postbreak_reject_reason;
+   double            confirm_buffer_pts;
+   int               bars_since_initial_break;
+   };
 
 struct XDFScoreBreakdown
   {

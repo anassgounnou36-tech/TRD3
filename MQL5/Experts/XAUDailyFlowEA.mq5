@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v1.5.8a-source-geometry-regime-fix-1"
+#define XDF_BUILD_TAG "v1.5.9-postbreak-quality-hardening-1"
 
 input string InpSymbol = "";
 
@@ -106,6 +106,7 @@ int g_geometry_invalidated_candidates=0;
 int g_rejected_by_regime_count=0;
 int g_rejected_by_geometry_count=0;
 int g_rejected_by_presend_payoff_count=0;
+int g_rejected_by_postbreak_quality_count=0;
 int g_orb_blocked_in_mr_count=0;
 int g_mr_blocked_in_trend_count=0;
 int g_orb_direct_break_blocked_both_sides_count=0;
@@ -113,6 +114,11 @@ int g_orb_direct_break_blocked_no_close_confirm_count=0;
 int g_orb_direct_break_blocked_low_buffer_count=0;
 int g_orb_direct_break_blocked_wide_stop_count=0;
 int g_orb_direct_break_blocked_late_fragility_count=0;
+int g_orb_direct_break_blocked_in_mixed_count=0;
+int g_orb_pause_continue_blocked_mixed_weak_hold_count=0;
+int g_orb_postbreak_reentered_or_too_deep_count=0;
+int g_orb_postbreak_wicky_confirm_count=0;
+int g_orb_postbreak_both_sides_violated_count=0;
 string g_last_guard_action="";
 string g_last_guard_reason="";
 datetime g_last_guard_bar=0;
@@ -264,16 +270,27 @@ bool XDF_IsGeometryInvalidReason(const string reason)
 
 void XDF_TrackORBDirectBreakVeto(const string reason)
   {
-   if(reason=="orb_direct_break_blocked_both_sides")
+   if(reason=="ORB_DIRECT_BREAK_BOTH_SIDES_VIOLATED" || reason=="orb_direct_break_blocked_both_sides")
       g_orb_direct_break_blocked_both_sides_count++;
-   else if(reason=="orb_direct_break_blocked_no_close_confirm")
+   else if(reason=="ORB_DIRECT_BREAK_NO_CLOSE_CONFIRM" || reason=="orb_direct_break_blocked_no_close_confirm")
       g_orb_direct_break_blocked_no_close_confirm_count++;
-   else if(reason=="orb_direct_break_blocked_low_buffer")
+   else if(reason=="ORB_DIRECT_BREAK_LOW_BUFFER" || reason=="orb_direct_break_blocked_low_buffer")
       g_orb_direct_break_blocked_low_buffer_count++;
-   else if(reason=="orb_direct_break_blocked_wide_stop")
+   else if(reason=="ORB_DIRECT_BREAK_WIDE_INVALIDATION" || reason=="orb_direct_break_blocked_wide_stop")
       g_orb_direct_break_blocked_wide_stop_count++;
-   else if(reason=="orb_direct_break_blocked_late_fragility")
+   else if(reason=="ORB_DIRECT_BREAK_LATE_ENTRY" || reason=="orb_direct_break_blocked_late_fragility")
       g_orb_direct_break_blocked_late_fragility_count++;
+   else if(reason=="ORB_POSTBREAK_DIRECT_BREAK_BLOCKED_IN_MIXED")
+      g_orb_direct_break_blocked_in_mixed_count++;
+   else if(reason=="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP")
+     {
+      g_orb_pause_continue_blocked_mixed_weak_hold_count++;
+      g_orb_postbreak_reentered_or_too_deep_count++;
+     }
+   else if(reason=="ORB_POSTBREAK_WICKY_CONFIRM")
+      g_orb_postbreak_wicky_confirm_count++;
+   else if(reason=="ORB_POSTBREAK_BOTH_SIDES_VIOLATED")
+      g_orb_postbreak_both_sides_violated_count++;
    else
       return;
    g_diag.Log("ORB_DIRECT_BREAK_VETO",reason);
@@ -520,8 +537,8 @@ void OnDeinit(const int reason)
    g_indicators.Release();
    double avg_orb_net_rr=(g_accepted_orb_count>0?g_accepted_orb_net_rr_sum/g_accepted_orb_count:0.0);
    double avg_mr_net_rr=(g_accepted_mr_count>0?g_accepted_mr_net_rr_sum/g_accepted_mr_count:0.0);
-   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_blocked_no_close_confirm=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d orb_direct_break_blocked_late_fragility=%d",
-                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count,g_orb_direct_break_blocked_late_fragility_count));
+   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d rejected_by_postbreak_quality=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_in_mixed=%d orb_pause_continue_blocked_mixed_weak_hold=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_no_close_confirm=%d orb_direct_break_late_entry=%d orb_postbreak_reentered_or_too_deep=%d orb_postbreak_wicky_confirm=%d orb_postbreak_both_sides_violated=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d",
+                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,g_rejected_by_postbreak_quality_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_in_mixed_count,g_orb_pause_continue_blocked_mixed_weak_hold_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_late_fragility_count,g_orb_postbreak_reentered_or_too_deep_count,g_orb_postbreak_wicky_confirm_count,g_orb_postbreak_both_sides_violated_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count));
    g_diag.Log("DEINIT",StringFormat("reason=%d",reason));
    g_diag.Shutdown();
    Comment("");
@@ -637,6 +654,7 @@ void OnTick()
    XDFDecision decision;
      bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
     XDF_TrackORBDirectBreakVeto(decision.orb_signal.reason_invalid);
+    XDF_TrackORBDirectBreakVeto(decision.orb_signal.postbreak_reject_reason);
     if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
        g_geometry_invalidated_candidates++;
     if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
@@ -668,6 +686,19 @@ void OnTick()
                                                   XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
                                                  decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,decision.selected_signal.net_rr));
           }
+        if(decision.blocker.code==BLOCKER_POSTBREAK_QUALITY)
+          {
+           g_rejected_by_postbreak_quality_count++;
+           g_diag.Log("POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                      XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
+                                                      decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
+          }
+        if(decision.orb_signal.postbreak_reject_reason!="")
+          {
+           g_diag.Log("ORB_POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reject_reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                          XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.orb_signal.subtype,decision.orb_signal.postbreak_reject_reason,
+                                                          decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break));
+          }
         if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
           {
             g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
@@ -693,10 +724,10 @@ void OnTick()
         if(decision.fallback_attempted)
            g_diag.Log((decision.fallback_accepted?"FAMILY_FALLBACK_ACCEPT":"FAMILY_FALLBACK_REJECT"),decision.fallback_reason);
         g_counters.setups_rejected++;
-      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbSource=%s orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
+      g_diag.Log("SETUP_REJECT",StringFormat("blocker=%s detail=%s family=%d subtype=%s regime=%s orbEligible=%s orbSubtype=%s orbSource=%s orbReasonInvalid=%s orbPostbreakReject=%s orbPostbreakPass=%s orbPostbreakScore=%.1f orbConfirmBufferPts=%.2f orbBarsSinceBreak=%d orbScoreRaw=%d orbScoreFinal=%d mrEligible=%s mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f selected=%d selection_reason=%s reject_reason=%s",
                                                XDF_BlockerToString(decision.blocker.code),decision.blocker.message,
-                                              (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                              (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_signal.reason,decision.orb_score_raw,decision.orb_score_final,
+                                               (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
+                                              (decision.orb_signal.valid?"Y":"N"),decision.orb_subtype,decision.orb_signal.reason,decision.orb_signal.reason_invalid,decision.orb_signal.postbreak_reject_reason,(decision.orb_signal.postbreak_quality_pass?"Y":"N"),decision.orb_signal.postbreak_quality_score,decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break,decision.orb_score_raw,decision.orb_score_final,
                                               (decision.mr_signal.valid?"Y":"N"),decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
                                               (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
                                               decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
@@ -713,10 +744,10 @@ void OnTick()
     g_diag.Log("SCORE",StringFormat("range=%d context=%d trigger=%d exec=%d vwap=%d noise=%d total=%d family=%d",
                                     score.range_quality,score.context_quality,score.trigger_quality,score.execution_quality,
                                     score.vwap_quality,score.noise_penalty,score.total,(int)chosen.family));
-    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbSource=%s orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
+    g_diag.Log("FAMILY_SELECT",StringFormat("eligible=%d selected=%d selection_reason=%s family=%d subtype=%s regime=%s orbSubtype=%s orbSource=%s orbPostbreakPass=%s orbPostbreakScore=%.1f orbConfirmBufferPts=%.2f orbBarsSinceBreak=%d orbScoreRaw=%d orbScoreFinal=%d mrSubtype=%s mrSource=%s mrScoreRaw=%d mrScoreFinal=%d mrPenalty=%s mrExceptional=%s mrBlockReason=%s mrOverrideReason=%s orbBlockReason=%s orbOverrideReason=%s or_width_secondary_allow=%s or_primary=%.1f or_secondary=%.1f or_penalty=%d stopDistPts=%.1f targetDistPts=%.1f spreadPts=%.1f expectedSlipPts=%.1f reject_reason=%s",
                                              (int)decision.eligible_family,(int)decision.selected_family,decision.selection_reason,
                                              (int)decision.selected_family,decision.selected_signal.subtype,XDF_RegimeToString((int)decision.regime),
-                                             decision.orb_subtype,decision.orb_signal.reason,decision.orb_score_raw,decision.orb_score_final,
+                                             decision.orb_subtype,decision.orb_signal.reason,(decision.orb_signal.postbreak_quality_pass?"Y":"N"),decision.orb_signal.postbreak_quality_score,decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break,decision.orb_score_raw,decision.orb_score_final,
                                              decision.mr_subtype,decision.mr_signal.reason,decision.mr_score_raw,decision.mr_score_final,
                                              (decision.mr_penalty_applied?"Y":"N"),(decision.mr_exceptional_allowed?"Y":"N"),
                                              decision.mr_block_reason,decision.mr_override_reason,decision.orb_block_reason,decision.orb_override_reason,
@@ -783,8 +814,9 @@ void OnTick()
       g_counters.setups_accepted++;
       g_last_blocker.code=BLOCKER_NONE;
       g_last_blocker.message="trade placed";
-        g_diag.Log("TRADE",StringFormat("build=%s regime=%s family=%d subtype=%s source_geom_regime=%s score=%d stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f grossRR=%.2f netRR=%.2f selection_reason=%s side=%s lots=%.2f",
-                                        XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),(int)chosen.family,chosen.subtype,chosen.reason,score.total,
+        g_diag.Log("TRADE",StringFormat("build=%s regime=%s family=%d subtype=%s source=%s postbreak_quality_score=%.1f confirm_buffer_pts=%.2f bars_since_initial_break=%d score=%d stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f grossRR=%.2f netRR=%.2f selection_reason=%s side=%s lots=%.2f",
+                                        XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),(int)chosen.family,chosen.subtype,chosen.reason,
+                                        chosen.postbreak_quality_score,chosen.confirm_buffer_pts,chosen.bars_since_initial_break,score.total,
                                         chosen.stop_points,chosen.target_points,chosen.spread_points,chosen.slip_points,chosen.gross_rr,chosen.net_rr,decision.selection_reason,
                                         (chosen.direction>0?"BUY":"SELL"),lots));
        g_runtime_session.last_setup_family=chosen.family;
