@@ -1,6 +1,7 @@
 #ifndef XAUDAILYFLOW_ORBSIGNAL_MQH
 #define XAUDAILYFLOW_ORBSIGNAL_MQH
 
+#include <XAUDailyFlow/Config.mqh>
 #include <XAUDailyFlow/Types.mqh>
 
 class XDFORBSignal
@@ -513,7 +514,7 @@ public:
       double or_width=MathMax(or_data.width,atr*0.25);
       XDFSignal candidate;
 
-      if(ema_long_ok && b0.close>or_data.high && b0.close>vwap)
+      if(XDF_ENABLE_ORB_DIRECT_BREAK && ema_long_ok && b0.close>or_data.high && b0.close>vwap)
         {
          double ext=(b0.close-or_data.high);
          if(ext<ext_limit*1.1)
@@ -543,7 +544,7 @@ public:
                 best=candidate;
             }
         }
-      if(ema_short_ok && b0.close<or_data.low && b0.close<vwap)
+      if(XDF_ENABLE_ORB_DIRECT_BREAK && ema_short_ok && b0.close<or_data.low && b0.close<vwap)
         {
          double ext=(or_data.low-b0.close);
          if(ext<ext_limit*1.1)
@@ -574,7 +575,7 @@ public:
             }
         }
 
-      if(ema_long_ok && (b2.close>or_data.high || b1.close>or_data.high) &&
+      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && ema_long_ok && (b2.close>or_data.high || b1.close>or_data.high) &&
          ((b1.low>=or_data.high-atr*0.24 && b0.close>or_data.high) || (b0.low>=or_data.high-atr*0.24 && b0.close>or_data.high)))
         {
          double structure_low=MathMin(MathMin(b0.low,b1.low),or_data.high-atr*0.10);
@@ -603,7 +604,7 @@ public:
          if(IsBetter(candidate,best))
             best=candidate;
         }
-      if(ema_short_ok && (b2.close<or_data.low || b1.close<or_data.low) &&
+      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && ema_short_ok && (b2.close<or_data.low || b1.close<or_data.low) &&
          ((b1.high<=or_data.low+atr*0.24 && b0.close<or_data.low) || (b0.high<=or_data.low+atr*0.24 && b0.close<or_data.low)))
         {
          double structure_high=MathMax(MathMax(b0.high,b1.high),or_data.low+atr*0.10);
@@ -633,7 +634,7 @@ public:
             best=candidate;
         }
 
-      if(ema_long_ok && b1.close>=or_data.high-atr*0.14 && b0.close>or_data.high && b0.close>b1.close)
+      if(XDF_ENABLE_ORB_TWO_BAR_CONFIRM && ema_long_ok && b1.close>=or_data.high-atr*0.14 && b0.close>or_data.high && b0.close>b1.close)
         {
          double structure_low=MathMin(b0.low,b1.low);
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
@@ -661,7 +662,7 @@ public:
          if(IsBetter(candidate,best))
             best=candidate;
         }
-      if(ema_short_ok && b1.close<=or_data.low+atr*0.14 && b0.close<or_data.low && b0.close<b1.close)
+      if(XDF_ENABLE_ORB_TWO_BAR_CONFIRM && ema_short_ok && b1.close<=or_data.low+atr*0.14 && b0.close<or_data.low && b0.close<b1.close)
         {
          double structure_high=MathMax(b0.high,b1.high);
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
@@ -690,7 +691,7 @@ public:
             best=candidate;
         }
 
-      if(ema_long_ok && b2.close>or_data.high && b1.low>or_data.high-atr*0.20 && b1.close>or_data.high-atr*0.08 && b0.close>or_data.high)
+      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && ema_long_ok && b2.close>or_data.high && b1.low>or_data.high-atr*0.20 && b1.close>or_data.high-atr*0.08 && b0.close>or_data.high)
         {
          double structure_low=MathMin(MathMin(b0.low,b1.low),b2.low);
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
@@ -718,7 +719,7 @@ public:
          if(IsBetter(candidate,best))
             best=candidate;
         }
-      if(ema_short_ok && b2.close<or_data.low && b1.high<or_data.low+atr*0.20 && b1.close<or_data.low+atr*0.08 && b0.close<or_data.low)
+      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && ema_short_ok && b2.close<or_data.low && b1.high<or_data.low+atr*0.20 && b1.close<or_data.low+atr*0.08 && b0.close<or_data.low)
         {
          double structure_high=MathMax(MathMax(b0.high,b1.high),b2.high);
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
