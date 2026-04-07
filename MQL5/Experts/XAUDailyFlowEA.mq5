@@ -570,7 +570,7 @@ void OnTick()
      if(ctx.expected_slippage_points>XDF_EXPECTED_SLIPPAGE_CAP_POINTS)
        {
         g_last_blocker.code=BLOCKER_PAYOFF;
-        g_last_blocker.message="BUILD_MISMATCH expected_slippage_points>8.0";
+        g_last_blocker.message=StringFormat("BUILD_MISMATCH expected_slippage_points>%.1f",XDF_EXPECTED_SLIPPAGE_CAP_POINTS);
         g_diag.Log("BUILD_MISMATCH",StringFormat("build=%s expectedSlipPts=%.2f symbol=%s regime=%d",XDF_BUILD_TAG,ctx.expected_slippage_points,g_symbol,g_last_regime));
         return;
        }

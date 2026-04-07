@@ -120,6 +120,38 @@ private:
       reason="EXCEPTIONAL_COUNTERTREND_RECLAIM";
       return(true);
      }
+   bool IsSignalPreferredByExpectancy(const XDFSignal &a,const int a_score,const XDFSignal &b,const int b_score) const
+     {
+      if(a.net_rr>=b.net_rr+0.10)
+         return(true);
+      if(a.net_rr<=b.net_rr-0.10)
+         return(false);
+      if(a.net_rr>b.net_rr+0.001)
+         return(true);
+      if(a.net_rr+0.001<b.net_rr)
+         return(false);
+      if(a.net_target_points>b.net_target_points+0.1)
+         return(true);
+      if(a.net_target_points+0.1<b.net_target_points)
+         return(false);
+      if(MathAbs(a.net_rr-b.net_rr)<=0.02 &&
+         MathAbs(a.net_target_points-b.net_target_points)<=0.5)
+        {
+         if(a.stop_points+0.1<b.stop_points)
+            return(true);
+         if(b.stop_points+0.1<a.stop_points)
+            return(false);
+        }
+      if(a_score>b_score)
+         return(true);
+      if(a_score<b_score)
+         return(false);
+      if(a.raw_structure_quality>b.raw_structure_quality)
+         return(true);
+      if(a.raw_structure_quality<b.raw_structure_quality)
+         return(false);
+      return(a.subtype_quality>=b.subtype_quality);
+     }
 public:
    void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,XDFSignal &orb,XDFSignal &mr)
       {
@@ -251,59 +283,19 @@ public:
                 out_decision.selected_reject_reason=StringFormat("mr_exceptional_override orbFinal=%d mrFinal=%d margin=%d",out_decision.orb_score_final,out_decision.mr_score_final,XDF_MR_OVERRIDE_MARGIN_OVER_ORB);
                }
             }
-          else if(out_decision.regime==REGIME_MEAN_REVERSION)
+           else if(out_decision.regime==REGIME_MEAN_REVERSION)
              {
-              if(out_decision.orb_signal.net_rr>=out_decision.mr_signal.net_rr+0.10)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>=out_decision.orb_signal.net_rr+0.10)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.001)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(out_decision.orb_signal.net_target_points>out_decision.mr_signal.net_target_points+0.1)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_target_points>out_decision.orb_signal.net_target_points+0.1)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(out_decision.orb_score_final>=out_decision.mr_score_final)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else
-                 out_decision.selected_signal=out_decision.mr_signal;
+              out_decision.selected_signal=(IsSignalPreferredByExpectancy(out_decision.orb_signal,out_decision.orb_score_final,out_decision.mr_signal,out_decision.mr_score_final)?
+                                           out_decision.orb_signal:out_decision.mr_signal);
               out_decision.selected_family=out_decision.selected_signal.family;
               out_decision.selected_score=(out_decision.selected_family==SETUP_MEAN_REVERSION?out_decision.mr_score:out_decision.orb_score);
               out_decision.selection_reason="REGIME_PREFERS_MR";
              out_decision.selected_reject_reason=StringFormat("both_valid orbFinal=%d mrFinal=%d selected=%d",out_decision.orb_score_final,out_decision.mr_score_final,(int)out_decision.selected_family);
             }
-          else
+           else
              {
-              if(out_decision.orb_signal.net_rr>=out_decision.mr_signal.net_rr+0.10)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>=out_decision.orb_signal.net_rr+0.10)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.001)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(out_decision.orb_signal.net_target_points>out_decision.mr_signal.net_target_points+0.1)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_target_points>out_decision.orb_signal.net_target_points+0.1)
-                 out_decision.selected_signal=out_decision.mr_signal;
-              else if(MathAbs(out_decision.orb_signal.net_rr-out_decision.mr_signal.net_rr)<=0.02 &&
-                      MathAbs(out_decision.orb_signal.net_target_points-out_decision.mr_signal.net_target_points)<=0.5)
-                {
-                 if(out_decision.orb_signal.stop_points+0.1<out_decision.mr_signal.stop_points)
-                    out_decision.selected_signal=out_decision.orb_signal;
-                 else if(out_decision.mr_signal.stop_points+0.1<out_decision.orb_signal.stop_points)
-                    out_decision.selected_signal=out_decision.mr_signal;
-                 else if(out_decision.orb_score_final>=out_decision.mr_score_final)
-                    out_decision.selected_signal=out_decision.orb_signal;
-                 else
-                    out_decision.selected_signal=out_decision.mr_signal;
-                }
-              else if(out_decision.orb_score_final>=out_decision.mr_score_final)
-                 out_decision.selected_signal=out_decision.orb_signal;
-              else
-                 out_decision.selected_signal=out_decision.mr_signal;
+              out_decision.selected_signal=(IsSignalPreferredByExpectancy(out_decision.orb_signal,out_decision.orb_score_final,out_decision.mr_signal,out_decision.mr_score_final)?
+                                           out_decision.orb_signal:out_decision.mr_signal);
               out_decision.selected_family=out_decision.selected_signal.family;
               out_decision.selected_score=(out_decision.selected_family==SETUP_ORB_CONTINUATION?out_decision.orb_score:out_decision.mr_score);
               out_decision.selection_reason="ADJUSTED_SCORE_COMPARE";

@@ -60,6 +60,8 @@ const double XDF_EXPECTED_SLIPPAGE_MIN_POINTS=2.0;
 const double XDF_EXPECTED_SLIPPAGE_SPREAD_FACTOR=0.15;
 const double XDF_EXPECTED_SLIPPAGE_CAP_POINTS=8.0;
 const int XDF_ORB_SECONDARY_ALLOW_MIN_SCORE=65;
+const double XDF_ORB_WEAK_SUBTYPE_MIN_GROSS_RR=1.15;
+const double XDF_ORB_WEAK_SUBTYPE_NET_TARGET_SPREAD_FACTOR=1.5;
 
 struct XDFSessionConfig
   {
@@ -367,7 +369,7 @@ bool XDF_PassesGeometryPolicy(const XDFSetupFamily family,
          return(false);
         }
       if((subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_BREAK_PAUSE_CONTINUE") &&
-         (metrics.gross_rr<1.15 || metrics.net_target_points<1.5*spread_points))
+         (metrics.gross_rr<XDF_ORB_WEAK_SUBTYPE_MIN_GROSS_RR || metrics.net_target_points<XDF_ORB_WEAK_SUBTYPE_NET_TARGET_SPREAD_FACTOR*spread_points))
         {
          reason="ORB_GEOMETRY_COST_THIN";
          return(false);

@@ -106,12 +106,12 @@ private:
          else
             final_stop=MathMin(final_stop,max_stop);
          final_stop=NormalizeDouble(final_stop,digits);
-         if(!(final_stop<final_entry) || (final_entry-final_stop)<min_stop_distance)
-           {
-            final_stop=NormalizeDouble(final_entry-min_stop_distance,digits);
-            if((final_entry-final_stop)<min_stop_distance)
-               final_stop=NormalizeDouble(final_stop-point,digits);
-           }
+          if((final_stop>=final_entry) || (final_entry-final_stop)<min_stop_distance)
+            {
+             final_stop=NormalizeDouble(final_entry-min_stop_distance,digits);
+             if((final_entry-final_stop)<min_stop_distance)
+                final_stop=NormalizeDouble(final_stop-point,digits);
+            }
          if(!(final_stop<final_entry) || (final_entry-final_stop)<min_stop_distance)
            {
             reason="invalid_stop_side";
@@ -376,13 +376,14 @@ public:
          }
       if(req.volume_step>0.0)
         {
-         double steps=req.lots/req.volume_step;
-          if(MathAbs(steps-MathRound(steps))>XDF_STEP_ALIGNMENT_TOLERANCE)
-           {
-            category="invalid volume";
-            reason=StringFormat("lots %.2f not aligned to step %.2f",req.lots,req.volume_step);
-            return(false);
-           }
+          double steps=req.lots/req.volume_step;
+          double fractional_part=MathAbs(steps-MathRound(steps));
+           if(fractional_part>XDF_STEP_ALIGNMENT_TOLERANCE)
+            {
+             category="invalid volume";
+             reason=StringFormat("lots %.2f not aligned to step %.2f",req.lots,req.volume_step);
+             return(false);
+            }
         }
 
       int digits=req.digits;
