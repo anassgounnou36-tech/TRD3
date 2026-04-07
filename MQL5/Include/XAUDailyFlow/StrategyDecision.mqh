@@ -206,8 +206,7 @@ public:
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
       out_decision.orb_subtype_formed=(out_decision.orb_subtype!="");
       bool orb_no_subtype_match=(!out_decision.orb_subtype_formed &&
-                                 (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
-                                  out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"));
+                                 out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH");
       out_decision.orb_postbreak_validator_entered=(out_decision.orb_signal.postbreak_quality_pass ||
                                                     out_decision.orb_signal.postbreak_reject_reason!="" ||
                                                     out_decision.orb_signal.confirm_buffer_pts>0.0 ||
