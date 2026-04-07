@@ -29,10 +29,10 @@ private:
              subtype=="ORB_BREAK_RETEST_HOLD" ||
              subtype=="ORB_TWO_BAR_CONFIRM");
      }
-   bool XDF_CloseBeyondEdge(const MqlRates &bar,const bool long_dir,const double edge)
-     {
-      return(long_dir ? (bar.close>edge) : (bar.close<edge));
-     }
+   bool XDF_CloseBeyondEdge(const MqlRates &bar,const bool long_dir,const double edge) const
+      {
+       return(long_dir ? (bar.close>edge) : (bar.close<edge));
+      }
    bool XDF_ValidateORBPostBreakQuality(const string symbol,
                                         const int shift,
                                         const XDFOpeningRange &or_data,
