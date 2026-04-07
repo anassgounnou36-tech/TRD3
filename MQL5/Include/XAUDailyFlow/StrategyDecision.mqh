@@ -205,6 +205,9 @@ public:
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
       out_decision.orb_subtype_formed=(out_decision.orb_subtype!="");
+      bool orb_no_subtype_match=(!out_decision.orb_subtype_formed &&
+                                 (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
+                                  out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"));
       out_decision.orb_postbreak_validator_entered=(out_decision.orb_signal.postbreak_quality_pass ||
                                                     out_decision.orb_signal.postbreak_reject_reason!="" ||
                                                     out_decision.orb_signal.confirm_buffer_pts>0.0 ||
@@ -221,9 +224,7 @@ public:
          out_decision.last_orb_reject_stage="POSTBREAK";
          out_decision.orb_reject_stage="POSTBREAK";
         }
-      else if(!out_decision.orb_subtype_formed &&
-              (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
-               out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"))
+      else if(orb_no_subtype_match)
         {
          out_decision.last_orb_reject_reason="NO_ORB_SUBTYPE_MATCH";
          out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
@@ -403,9 +404,7 @@ public:
             out_decision.blocker.message=StringFormat("payoff_gate orb_ok=%s orb=%s mr_ok=%s mr=%s",(orb_payoff_ok?"Y":"N"),orb_payoff_detail,(mr_payoff_ok?"Y":"N"),mr_payoff_detail);
             out_decision.selected_reject_reason="payoff";
            }
-         else if(!out_decision.orb_subtype_formed &&
-                 (out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH" ||
-                  out_decision.orb_signal.reason_invalid=="no_orb_subtype_match"))
+         else if(orb_no_subtype_match)
            {
             out_decision.blocker.code=BLOCKER_NO_SETUP;
             out_decision.blocker.message="NO_ORB_SUBTYPE_MATCH";
