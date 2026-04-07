@@ -34,6 +34,7 @@ input int InpLondonTradeMinutes = 120;
 input int InpNYStartHour = 13;
 input int InpNYStartMinute = 30;
 input int InpNYORMinutes = 10;
+// London-first ORB-only branch default: keep NY disabled until subtype winner is established.
 input int InpNYTradeMinutes = 0;
 input bool InpEnablePauseContinue = true;
 input bool InpEnableRetestHold = true;

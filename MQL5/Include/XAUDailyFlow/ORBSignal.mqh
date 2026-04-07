@@ -13,6 +13,11 @@ private:
    static const double XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR;
    // ATR offset factor included in OR-width stop cap computation.
    static const double XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR;
+   static const double XDF_PAUSE_CONTINUE_CONFIRM_ATR_FACTOR;
+   static const double XDF_PAUSE_CONTINUE_CONFIRM_SPREAD_FACTOR;
+   static const double XDF_PAUSE_CONTINUE_MIN_BODY_RATIO;
+   static const double XDF_RETEST_HOLD_CONFIRM_ATR_FACTOR;
+   static const double XDF_RETEST_HOLD_CONFIRM_SPREAD_FACTOR;
    string XDF_LocalRegimeToString(const XDFRegime regime) const
      {
       if(regime==REGIME_TREND_CONTINUATION)
@@ -155,8 +160,8 @@ private:
            }
          double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
          double reentry_tol_price=reentry_tol_pts*point;
-         bool boundary_churn=(long_dir?(bars[1].close<edge && bars[2].close>edge):(bars[1].close>edge && bars[2].close<edge));
-         if(boundary_churn)
+         bool detected_boundary_oscillation=(long_dir?(bars[1].close<edge && bars[2].close>edge):(bars[1].close>edge && bars[2].close<edge));
+         if(detected_boundary_oscillation)
            {
             reason_out="ORB_POSTBREAK_DIRTY_CHURN";
             return(false);
@@ -176,13 +181,13 @@ private:
             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
-         confirm_buffer_pts_out=MathMax(0.14*atr_pts,1.15*spread_pts);
+         confirm_buffer_pts_out=MathMax(XDF_PAUSE_CONTINUE_CONFIRM_ATR_FACTOR*atr_pts,XDF_PAUSE_CONTINUE_CONFIRM_SPREAD_FACTOR*spread_pts);
          if(confirm_close_pts<confirm_buffer_pts_out)
            {
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
             return(false);
            }
-         if(body_ratio<0.40 || !close_location_ok)
+         if(body_ratio<XDF_PAUSE_CONTINUE_MIN_BODY_RATIO || !close_location_ok)
            {
             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
             return(false);
@@ -262,7 +267,7 @@ private:
             return(false);
            }
 
-         confirm_buffer_pts_out=MathMax(0.10*atr_pts,1.00*spread_pts);
+         confirm_buffer_pts_out=MathMax(XDF_RETEST_HOLD_CONFIRM_ATR_FACTOR*atr_pts,XDF_RETEST_HOLD_CONFIRM_SPREAD_FACTOR*spread_pts);
          if(confirm_close_pts<confirm_buffer_pts_out)
            {
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
@@ -781,5 +786,10 @@ public:
 const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_ATR_FACTOR=0.80;
 const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_OR_WIDTH_FACTOR=0.60;
 const double XDFORBSignal::XDF_DIRECT_BREAK_STOP_CAP_ATR_OFFSET_FACTOR=0.10;
+const double XDFORBSignal::XDF_PAUSE_CONTINUE_CONFIRM_ATR_FACTOR=0.14;
+const double XDFORBSignal::XDF_PAUSE_CONTINUE_CONFIRM_SPREAD_FACTOR=1.15;
+const double XDFORBSignal::XDF_PAUSE_CONTINUE_MIN_BODY_RATIO=0.40;
+const double XDFORBSignal::XDF_RETEST_HOLD_CONFIRM_ATR_FACTOR=0.10;
+const double XDFORBSignal::XDF_RETEST_HOLD_CONFIRM_SPREAD_FACTOR=1.00;
 
 #endif

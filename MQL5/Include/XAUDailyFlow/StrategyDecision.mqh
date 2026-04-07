@@ -202,9 +202,9 @@ public:
       double vwap_dist_points=ctx.vwap_distance_points;
       double recent_range_price=ctx.recent_range_price;
       double or_width_points=(ctx.point>0.0 ? ctx.or_data.width/ctx.point : 0.0);
-      bool orb_only_mode=(!XDF_ENABLE_MR);
+      bool mr_disabled_orb_only_mode=(!XDF_ENABLE_MR);
 
-      if(orb_only_mode && !ctx.session.active)
+      if(mr_disabled_orb_only_mode && !ctx.session.active)
         {
          DisableMRSignal(out_decision.mr_signal);
          out_decision.mr_subtype=out_decision.mr_signal.subtype;
@@ -218,7 +218,7 @@ public:
          return(false);
         }
 
-      if(orb_only_mode && XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION)
+      if(mr_disabled_orb_only_mode && XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION)
         {
          DisableMRSignal(out_decision.mr_signal);
          out_decision.mr_subtype=out_decision.mr_signal.subtype;
