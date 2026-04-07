@@ -1,0 +1,74 @@
+# Demo Test Checklist
+
+- [ ] Attach XAUDailyFlowEA to XM GOLD alias symbol
+- [ ] Verify symbol auto-resolution selects GOLD/XAU alias
+- [ ] Validate panel shows OR, VWAP, regime, setup score, blocker reason
+- [ ] Validate panel shows active session, OR-built status, setup candidate family, position state, and daily kill-switch status
+- [ ] Validate panel also shows server time, OR width, eligible family, selected family, M15 context summary, and management state
+- [ ] Validate panel shows `BOTH` as eligible state when ORB and MR are both valid
+- [ ] Validate blocker text remains specific and stable (spread/ATR/VWAP/score/risk/daily)
+- [ ] Validate no-signal outcomes use `BLOCKER_NO_SETUP` and reserve `BLOCKER_REGIME` for true regime/filter rejections
+- [ ] Validate weak-geometry candidates are blocked with `BLOCKER_PAYOFF` (not hidden as score/regime)
+- [ ] Confirm source-level geometry rejects include explicit reasons (`ORB_GEOMETRY_*`, `MR_GEOMETRY_*`) with `stopPts/targetPts/spreadPts/slipPts/netRR`
+- [ ] Confirm no trading outside London/NY windows
+- [ ] Confirm init logs print configured London/NY windows (broker-server dependent)
+- [ ] Confirm max daily loss blocker engages
+- [ ] Confirm max trades/day and per session limits
+- [ ] Confirm no overnight holds (timeout exits)
+- [ ] Confirm spread/vwap-distance filters block noisy conditions
+- [ ] Confirm adaptive filter behavior (ATR-relative spread/VWAP and compression dead-session block)
+- [ ] Confirm adaptive filter behavior uses contextual ratios first and fixed thresholds only as safety caps
+- [ ] Confirm ORB continuation candidates can pass OR-width via secondary allowance for strong continuation subtypes (including `ORB_DIRECT_BREAK`) when subtype/score/regime conditions are met (`or_width_secondary_allow=Y`) and score penalty `6` is logged
+- [ ] Confirm `OR_TOO_WIDE` still blocks non-qualifying setups (especially MR or weak ORB)
+- [ ] Confirm regime logs include explicit reason summary
+- [ ] Confirm score logs include full breakdown readability
+- [ ] Confirm near-threshold setup rejections include full score breakdown
+- [ ] Confirm decision logs include `orb_score_raw/final`, `mr_score_raw/final`, MR-penalty flag, exceptional-MR flag, and `selection_reason`
+- [ ] Confirm decision logs include `stopDistPts`, `targetDistPts`, `spreadPts`, `expectedSlipPts`
+- [ ] Confirm TREND_CONTINUATION decisions default to ORB unless `selection_reason=EXCEPTIONAL_MR_OVERRIDE`
+- [ ] Confirm ordinary MR in TREND_CONTINUATION is blocked by default (`mr_block_reason=TREND_CONTINUATION_DEFAULT_BLOCK`)
+- [ ] Confirm MR selections in TREND_CONTINUATION are materially reduced and only appear for exceptional MR reclaim overrides
+- [ ] Confirm exceptional MR override requires MR score >=80 and margin >=10 over ORB when both are valid
+- [ ] Confirm ordinary ORB continuation in `MEAN_REVERSION` is blocked by default (`orb_block_reason=MEAN_REVERSION_DEFAULT_BLOCK`)
+- [ ] Confirm ORB in `MEAN_REVERSION` only appears with `orb_override_reason=EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION`
+- [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
+- [ ] Confirm accepted trade logs include build/regime/family/subtype/score and `stopPts/targetPts/spreadPts/slipPts/grossRR/netRR/selection_reason`
+- [ ] Confirm v1.5.7 INIT line includes `sourceGeom=enabled decisionGeom=enabled presendGeom=enabled`
+- [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
+- [ ] Confirm pre-send logs include raw signal entry/stop/tp, snapped entry, and final normalized entry/SL/TP
+- [ ] Confirm pre-send logs include min stop distance and stops/freeze levels used for sanitization
+- [ ] Confirm order post-send logs include retcode + description + order/deal tickets
+- [ ] Confirm SL modify logs include old/new SL, delta, retcode details
+- [ ] Confirm modify logs clearly state when modify is skipped and why
+- [ ] Confirm execution preflight failures are categorized (invalid symbol/volume/stop/spread/tradable/send/modify)
+- [ ] Confirm `OrderCheck()==true` with retcode `0` is logged as accepted in tester (`ACCEPT_IN_TESTER`) and does not reject valid orders
+- [ ] Confirm `invalid_stop_side` is only raised when side is still invalid after sanitize/clamp/normalize
+- [ ] Confirm blocker log includes both blocker enum and human-readable reason
+- [ ] Confirm InpSizeFromEquity=true sizes from equity
+- [ ] Confirm InpSizeFromEquity=false sizes from balance
+- [ ] Run XAUDailyFlow_BarAudit with bar-count mode and inspect strategy-aware output
+- [ ] Run XAUDailyFlow_BarAudit with date-range mode and inspect historical checkpoints
+- [ ] Confirm BarAudit and EA share same strategy decision path (regime/signal/scoring/blockers)
+- [ ] Confirm BarAudit output includes `orb_valid`, `mr_valid`, `orb_subtype`, `mr_subtype`, `orb_score`, `mr_score`, and reject reason
+- [ ] Confirm BarAudit output includes `orb_reason_invalid` and `mr_reason_invalid` when family candidates are invalid
+- [ ] Confirm historical BarAudit checkpoints use timestamp-aligned closed M5 bars (no current-bar drift)
+- [ ] Confirm OR debug logs show exact OR bar count and deterministic boundary handling
+- [ ] Confirm OR validation line shows session_start (inclusive), or_end (exclusive), shifts, bar count, and OR H/L/W
+- [ ] Confirm OR finalization is session-cached (finalize once per session, reuse cached OR after OR end)
+- [ ] Confirm OR_BUILD/OR_VALIDATE logs are state-change driven and do not flood 3-month tester Journal with identical duplicates
+- [ ] Confirm trade-management phases transition in logs (OPEN/TP1_REACHED/BE_ACTIVE/RUNNER_TRAIL/TIME_EXIT/COMPLETE)
+- [ ] Confirm management state transitions use MGMT_* state-machine semantics
+- [ ] Confirm no BE/trailing update happens before 2 fully closed M5 bars after entry
+- [ ] Confirm no trailing update before ORB >=1.2R MFE and MR >=1.5R MFE
+- [ ] Confirm no BE update before ORB >=1.0R MFE and MR >=1.3R MFE
+- [ ] Confirm management logs include `bars_since_entry`, `mfe_r`, action, family, subtype, `oldSL`, `newSL`, reason, and reduced guard-noise behavior
+- [ ] Confirm BE/trail are not executed on the same tick unless it is the first valid management event after guardrails
+- [ ] Confirm no static-array ArraySetAsSeries warning remains in compile output
+- [ ] Confirm no `ENUM_TRADE_RETCODE` / enum-cast retcode compile error remains
+- [ ] Confirm ChartPanel compiles with explicit regime argument and panel displays regime
+- [ ] Confirm no `test.txt` artifact remains in repository
+- [ ] Confirm final normalized pre-send payoff gate is active via `PRE_SEND_PAYOFF_FAIL` with final stop/target/spread/slip/netRR fields
+- [ ] Confirm every `PRE_SEND` line (pass or fail) prints `finalStopPts/finalTargetPts/finalSpreadPts/finalSlipPts/finalGrossRR/finalNetTargetPts/finalNetRR/minRequiredNetRR` with family/subtype/regime
+- [ ] Confirm runtime guard logs `RUNTIME_GUARD_FAIL orb_in_mean_reversion_without_override` and blocks send
+- [ ] Confirm DEINIT summary prints build + accepted ORB/MR, regime/geometry/presend-payoff rejects, avg accepted netRR by family, and ORB/MR regime-block counters
+- [ ] Confirm MGMT_GUARD no longer duplicates same bar/action/reason/family/subtype tuple
