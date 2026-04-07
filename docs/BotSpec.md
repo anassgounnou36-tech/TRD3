@@ -104,6 +104,14 @@ XAUDailyFlowEA is a pure MQL5 intraday bot for XM GOLD aliases (GOLD/XAUUSD/XAUU
 - Candidate ranking is net-expectancy first (`netRR`, then `netTargetPts`) before score/structure tie-breakers.
 - Final pre-send payoff verification runs after normalized prices and rejects degraded requests with `PRE_SEND_PAYOFF_FAIL`.
 
+## v1.5.7 runtime regime/geometry enforcement
+
+- Build identity and runtime startup diagnostics now explicitly report geometry-gate modes (`sourceGeom`, `decisionGeom`, `presendGeom`) under the v1.5.7 build tag.
+- Geometry policy is unified through one shared helper used by source construction, decision payoff checks, final selected-candidate validation, and execution pre-send validation.
+- ORB in `MEAN_REVERSION` is enforced by hard runtime veto at decision boundary and again before execution when no explicit exceptional override is present.
+- ORB quality floor is raised by regime (`TREND_CONTINUATION`/`MIXED`/`MEAN_REVERSION` override) with extra weak-subtype gross/net target requirements to remove cost-thin continuation trades.
+- Pre-send logs always print final geometry proof fields (stop/target/spread/slip, grossRR, netTarget, netRR, min required netRR) and DEINIT emits end-of-test quality counters.
+
 ## Time assumptions
 
 - Session inputs are interpreted in **broker server time**.

@@ -33,6 +33,7 @@
 - [ ] Confirm ORB in `MEAN_REVERSION` only appears with `orb_override_reason=EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION`
 - [ ] Confirm order pre-send logs include family/regime/score/stopDist/targetDist/deviation
 - [ ] Confirm accepted trade logs include build/regime/family/subtype/score and `stopPts/targetPts/spreadPts/slipPts/grossRR/netRR/selection_reason`
+- [ ] Confirm v1.5.7 INIT line includes `sourceGeom=enabled decisionGeom=enabled presendGeom=enabled`
 - [ ] Confirm pre-send logs include trade mode, fill mode, and volume bounds/step snapshot
 - [ ] Confirm pre-send logs include raw signal entry/stop/tp, snapped entry, and final normalized entry/SL/TP
 - [ ] Confirm pre-send logs include min stop distance and stops/freeze levels used for sanitization
@@ -67,3 +68,7 @@
 - [ ] Confirm ChartPanel compiles with explicit regime argument and panel displays regime
 - [ ] Confirm no `test.txt` artifact remains in repository
 - [ ] Confirm final normalized pre-send payoff gate is active via `PRE_SEND_PAYOFF_FAIL` with final stop/target/spread/slip/netRR fields
+- [ ] Confirm every `PRE_SEND` line (pass or fail) prints `finalStopPts/finalTargetPts/finalSpreadPts/finalSlipPts/finalGrossRR/finalNetTargetPts/finalNetRR/minRequiredNetRR` with family/subtype/regime
+- [ ] Confirm runtime guard logs `RUNTIME_GUARD_FAIL orb_in_mean_reversion_without_override` and blocks send
+- [ ] Confirm DEINIT summary prints build + accepted ORB/MR, regime/geometry/presend-payoff rejects, avg accepted netRR by family, and ORB/MR regime-block counters
+- [ ] Confirm MGMT_GUARD no longer duplicates same bar/action/reason/family/subtype tuple

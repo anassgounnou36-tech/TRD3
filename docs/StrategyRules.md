@@ -41,6 +41,8 @@
 - If both families are valid, eligibility is represented explicitly (`SETUP_BOTH`) and selection is net-expectancy-first: `netRR`, then `netTargetPts`, then tighter stop in close ties, then score/structure.
 - Source-level geometry rejects cost-thin and stop-too-tight/too-wide setups before family selection (family-specific stop floor/cap + net-R requirements).
 - Final pre-send payoff verification re-checks normalized stop/target/spread/slippage; degraded requests are rejected as `PRE_SEND_PAYOFF_FAIL`.
+- Runtime guardrails enforce regime-family truth at the final boundary: ORB in `MEAN_REVERSION` is vetoed unless explicit exceptional override survives all checks.
+- Final selected-candidate geometry validation runs after selection/fallback/filtering; failures are rejected with payoff blocker before execution.
 
 ## Trade management phases (v1.4)
 

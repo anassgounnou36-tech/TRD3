@@ -44,36 +44,16 @@ private:
         }
 
       XDF_SetGeometryMetrics(s,point,atr,or_width,spread_points,slip_points);
-
-      double stop_floor=MathMax(0.28*s.atr_points,1.40*s.spread_points+2.0*s.slip_points);
-      if(s.stop_points<stop_floor)
+      XDFGeometryMetrics metrics;
+      string reason;
+      bool pass=XDF_PassesGeometryPolicy(SETUP_MEAN_REVERSION,subtype,REGIME_MEAN_REVERSION,s.stop_points,s.target_points,s.spread_points,s.slip_points,s.atr_points,s.or_width_points,metrics,reason);
+      s.gross_rr=metrics.gross_rr;
+      s.net_target_points=metrics.net_target_points;
+      s.net_rr=metrics.net_rr;
+      if(!pass)
         {
          s.valid=false;
-         s.reason_invalid="MR_GEOMETRY_STOP_TOO_TIGHT";
-         return(false);
-        }
-      if(s.stop_points>0.85*s.atr_points)
-        {
-         s.valid=false;
-         s.reason_invalid="MR_GEOMETRY_STOP_TOO_WIDE";
-         return(false);
-        }
-      if(s.target_points<=s.stop_points || s.net_target_points<=0.0)
-        {
-         s.valid=false;
-         s.reason_invalid="MR_GEOMETRY_COST_THIN";
-         return(false);
-        }
-      if(s.net_rr<1.05)
-        {
-         s.valid=false;
-         s.reason_invalid="MR_GEOMETRY_NET_R_TOO_LOW";
-         return(false);
-        }
-      if((subtype=="MR_IMMEDIATE_SWEEP_RECLAIM" || subtype=="MR_DELAYED_RECLAIM_WINDOW") && s.net_rr<1.10)
-        {
-         s.valid=false;
-         s.reason_invalid="MR_GEOMETRY_NET_R_TOO_LOW";
+         s.reason_invalid=reason;
          return(false);
         }
       return(true);
@@ -105,9 +85,9 @@ public:
          return(false);
       if(!current_best.valid)
          return(true);
-      if(candidate.net_rr>current_best.net_rr+0.10)
+      if(candidate.net_rr>=current_best.net_rr+0.10)
          return(true);
-      if(candidate.net_rr+0.10<current_best.net_rr)
+      if(candidate.net_rr<=current_best.net_rr-0.10)
          return(false);
       if(candidate.net_rr>current_best.net_rr+0.001)
          return(true);

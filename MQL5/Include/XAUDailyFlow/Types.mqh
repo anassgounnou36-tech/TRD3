@@ -260,6 +260,123 @@ struct XDFPositionState
    bool              tp1_seen;
   };
 
+struct XDFGeometryMetrics
+  {
+   double            gross_rr;
+   double            net_target_points;
+   double            net_rr;
+  };
+
+double XDF_MinNetRRForFamilyRegimeSubtype(const XDFSetupFamily family,const string subtype,const XDFRegime regime)
+  {
+   if(family==SETUP_ORB_CONTINUATION)
+     {
+      if(regime==REGIME_TREND_CONTINUATION)
+         return(1.10);
+      if(regime==REGIME_MIXED)
+         return(1.15);
+      if(regime==REGIME_MEAN_REVERSION)
+         return(1.20);
+      return(1.15);
+     }
+   if(family==SETUP_MEAN_REVERSION)
+     {
+      if(subtype=="MR_IMMEDIATE_SWEEP_RECLAIM" || subtype=="MR_DELAYED_RECLAIM_WINDOW")
+         return(1.10);
+      return(1.05);
+     }
+   return(0.0);
+  }
+
+double XDF_MinStopFloorPtsForFamily(const XDFSetupFamily family,const double atr_points,const double spread_points,const double slip_points)
+  {
+   if(family==SETUP_ORB_CONTINUATION)
+      return(MathMax(0.30*atr_points,1.60*spread_points+2.0*slip_points));
+   if(family==SETUP_MEAN_REVERSION)
+      return(MathMax(0.35*atr_points,1.80*spread_points+2.0*slip_points));
+   return(0.0);
+  }
+
+double XDF_MaxStopCapPtsForFamily(const XDFSetupFamily family,const double atr_points,const double or_width_points)
+  {
+   if(family==SETUP_ORB_CONTINUATION)
+     {
+      double width_component=(or_width_points>0.0?0.75*or_width_points+0.10*atr_points:0.95*atr_points);
+      return(MathMin(0.95*atr_points,width_component));
+     }
+   if(family==SETUP_MEAN_REVERSION)
+      return(0.85*atr_points);
+   return(1.0e9);
+  }
+
+bool XDF_PassesGeometryPolicy(const XDFSetupFamily family,
+                              const string subtype,
+                              const XDFRegime regime,
+                              const double stop_points,
+                              const double target_points,
+                              const double spread_points,
+                              const double slip_points,
+                              const double atr_points,
+                              const double or_width_points,
+                              XDFGeometryMetrics &metrics,
+                              string &reason)
+  {
+   metrics.gross_rr=(stop_points>0.0?target_points/stop_points:0.0);
+   metrics.net_target_points=target_points-spread_points-slip_points;
+   metrics.net_rr=(stop_points>0.0?metrics.net_target_points/stop_points:0.0);
+   reason="";
+
+   if(stop_points<=0.0 || target_points<=0.0 || atr_points<=0.0)
+     {
+      reason=(family==SETUP_ORB_CONTINUATION?"ORB_GEOMETRY_INVALID_INPUTS":"MR_GEOMETRY_INVALID_INPUTS");
+      return(false);
+     }
+
+   double stop_floor=XDF_MinStopFloorPtsForFamily(family,atr_points,spread_points,slip_points);
+   if(stop_points<stop_floor)
+     {
+      reason=(family==SETUP_ORB_CONTINUATION?"ORB_GEOMETRY_STOP_TOO_TIGHT":"MR_GEOMETRY_STOP_TOO_TIGHT");
+      return(false);
+     }
+
+   double stop_cap=XDF_MaxStopCapPtsForFamily(family,atr_points,or_width_points);
+   if(stop_points>stop_cap)
+     {
+      reason=(family==SETUP_ORB_CONTINUATION?"ORB_GEOMETRY_STOP_TOO_WIDE":"MR_GEOMETRY_STOP_TOO_WIDE");
+      return(false);
+     }
+
+   if(target_points<=stop_points || metrics.net_target_points<=0.0)
+     {
+      reason=(family==SETUP_ORB_CONTINUATION?"ORB_GEOMETRY_COST_THIN":"MR_GEOMETRY_COST_THIN");
+      return(false);
+     }
+
+   double min_net_rr=XDF_MinNetRRForFamilyRegimeSubtype(family,subtype,regime);
+   if(metrics.net_rr<min_net_rr)
+     {
+      reason=(family==SETUP_ORB_CONTINUATION?"ORB_GEOMETRY_NET_R_TOO_LOW":"MR_GEOMETRY_NET_R_TOO_LOW");
+      return(false);
+     }
+
+   if(family==SETUP_ORB_CONTINUATION)
+     {
+      if(metrics.net_target_points<=spread_points)
+        {
+         reason="ORB_GEOMETRY_COST_THIN";
+         return(false);
+        }
+      if((subtype=="ORB_DIRECT_BREAK" || subtype=="ORB_BREAK_PAUSE_CONTINUE") &&
+         (metrics.gross_rr<1.15 || metrics.net_target_points<1.5*spread_points))
+        {
+         reason="ORB_GEOMETRY_COST_THIN";
+         return(false);
+        }
+     }
+
+   return(true);
+  }
+
 // v1.5.4 continuation-quality ORB set used for secondary OR-width allowance.
 bool XDF_IsORBContinuationQualitySubtype(const string subtype)
   {

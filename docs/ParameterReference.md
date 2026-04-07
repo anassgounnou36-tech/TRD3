@@ -58,6 +58,11 @@
 - v1.5.6 post-normalization pre-send payoff gate: ORB rejects if final `netRR < 0.90`; MR rejects if final `netRR < 1.00` (`PRE_SEND_PAYOFF_FAIL`).
 - v1.5.6 MEAN_REVERSION regime ORB policy: default ORB block with rare exceptional breakout override only under strict subtype/score/net-R/M15 conditions.
 - New blocker class: `BLOCKER_PAYOFF` for structurally weak setup geometry (distinct from score/regime/filter blockers).
+- v1.5.7 unified geometry policy helper is now the single source of truth for source, decision, selected-candidate, and pre-send gates.
+- v1.5.7 stop floors were tightened: ORB `max(0.30*atrPts, 1.60*spreadPts + 2.0*slipPts)`, MR `max(0.35*atrPts, 1.80*spreadPts + 2.0*slipPts)`; previous stop caps are retained.
+- v1.5.7 ORB minimum netRR is regime-aware: `TREND_CONTINUATION >=1.10`, `MIXED >=1.15`, exceptional `MEAN_REVERSION >=1.20`.
+- v1.5.7 weak ORB subtypes (`ORB_DIRECT_BREAK`, `ORB_BREAK_PAUSE_CONTINUE`) also require `grossRR >=1.15` and `netTargetPts >=1.5*spreadPts`.
+- v1.5.7 pre-send logs always include final geometry proof fields: `finalStopPts`, `finalTargetPts`, `finalSpreadPts`, `finalSlipPts`, `finalGrossRR`, `finalNetTargetPts`, `finalNetRR`, `minRequiredNetRR`, family/subtype/regime.
 - OR-width filter now supports ORB-only secondary allowance in strong TREND_CONTINUATION continuation subtypes (`ORB_DIRECT_BREAK`, `ORB_TWO_BAR_CONFIRM`, `ORB_BREAK_RETEST_HOLD`, `ORB_BREAK_PAUSE_CONTINUE`) with wider secondary band (`primary*1.35`) and score penalty `6`.
 - Decision logs now include `orb_score_raw/final`, `mr_score_raw/final`, MR block/override reasons, OR-width secondary allowance diagnostics, payoff distances, blocker, and selection reason.
 - Internal strategy constants (v1.5.4 correction): MR exceptional score floor `>=80`, ORB acceptable quality gate `>=65`, exceptional MR override margin `>=10` points over ORB, strong-continuation M15 slope-strength gate `>=0.08`.

@@ -33,36 +33,32 @@ private:
              mr.confirmation_quality>=16 &&
              mr.trigger_body_ratio>=0.45);
      }
-   bool PassesPayoffGate(const XDFSignal &signal,const XDFDecisionContext &ctx,double &stop_dist_pts,double &target_dist_pts,double &spread_pts,double &expected_slip_pts,string &gate_detail) const
-      {
-      stop_dist_pts=0.0;
-      target_dist_pts=0.0;
-      spread_pts=ctx.spread_points;
-      expected_slip_pts=ctx.expected_slippage_points;
+   bool PassesPayoffGate(const XDFSignal &signal,const XDFDecisionContext &ctx,const XDFRegime regime,const double atr_points,const double or_width_points,double &stop_dist_pts,double &target_dist_pts,double &spread_pts,double &expected_slip_pts,string &gate_detail) const
+       {
+       stop_dist_pts=0.0;
+       target_dist_pts=0.0;
+       spread_pts=ctx.spread_points;
+       expected_slip_pts=ctx.expected_slippage_points;
       gate_detail="";
       if(!signal.valid || ctx.point<=0.0)
          return(false);
       stop_dist_pts=signal.stop_distance/ctx.point;
       target_dist_pts=signal.target_distance/ctx.point;
-      if(stop_dist_pts<=0.0 || target_dist_pts<=0.0)
-        {
-         gate_detail="invalid_distance_points";
-         return(false);
-        }
-      double min_target=(signal.family==SETUP_ORB_CONTINUATION?
-                         MathMax(stop_dist_pts*0.75,spread_pts*2.0+expected_slip_pts):
-                         MathMax(stop_dist_pts*1.00,spread_pts*2.5+expected_slip_pts));
-      double min_net=(signal.family==SETUP_ORB_CONTINUATION?spread_pts*1.0:spread_pts*1.25);
-      double net_target=target_dist_pts-spread_pts-expected_slip_pts;
-      bool pass=(target_dist_pts>=min_target && net_target>=min_net);
-      if(!pass)
-        {
-         double rr=(stop_dist_pts>0.0?target_dist_pts/stop_dist_pts:0.0);
-         gate_detail=StringFormat("family=%d subtype=%s rr=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f blocker=BLOCKER_PAYOFF minTarget=%.1f net=%.1f minNet=%.1f",
-                                  (int)signal.family,signal.subtype,rr,stop_dist_pts,target_dist_pts,spread_pts,expected_slip_pts,min_target,net_target,min_net);
-        }
-      return(pass);
-      }
+       if(stop_dist_pts<=0.0 || target_dist_pts<=0.0)
+         {
+          gate_detail="invalid_distance_points";
+          return(false);
+         }
+       XDFGeometryMetrics metrics;
+       string reason;
+       bool pass=XDF_PassesGeometryPolicy(signal.family,signal.subtype,regime,stop_dist_pts,target_dist_pts,spread_pts,expected_slip_pts,atr_points,or_width_points,metrics,reason);
+       if(!pass)
+         {
+          gate_detail=StringFormat("family=%d subtype=%s reason=%s grossRR=%.2f netRR=%.2f stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f",
+                                   (int)signal.family,signal.subtype,reason,metrics.gross_rr,metrics.net_rr,stop_dist_pts,target_dist_pts,spread_pts,expected_slip_pts);
+         }
+       return(pass);
+       }
    bool PassesExceptionalMRPayoff(const double stop_dist_pts,const double target_dist_pts,const double spread_pts,const double expected_slip_pts) const
      {
       if(stop_dist_pts<=0.0 || target_dist_pts<=0.0)
@@ -182,8 +178,8 @@ public:
       double orb_stop_pts=0.0,orb_target_pts=0.0,orb_spread_pts=ctx.spread_points,orb_slip_pts=ctx.expected_slippage_points;
       double mr_stop_pts=0.0,mr_target_pts=0.0,mr_spread_pts=ctx.spread_points,mr_slip_pts=ctx.expected_slippage_points;
       string orb_payoff_detail,mr_payoff_detail;
-      bool orb_payoff_ok=(!out_decision.orb_signal.valid || PassesPayoffGate(out_decision.orb_signal,ctx,orb_stop_pts,orb_target_pts,orb_spread_pts,orb_slip_pts,orb_payoff_detail));
-      bool mr_payoff_ok=(!out_decision.mr_signal.valid || PassesPayoffGate(out_decision.mr_signal,ctx,mr_stop_pts,mr_target_pts,mr_spread_pts,mr_slip_pts,mr_payoff_detail));
+      bool orb_payoff_ok=(!out_decision.orb_signal.valid || PassesPayoffGate(out_decision.orb_signal,ctx,out_decision.regime,atr_points,or_width_points,orb_stop_pts,orb_target_pts,orb_spread_pts,orb_slip_pts,orb_payoff_detail));
+      bool mr_payoff_ok=(!out_decision.mr_signal.valid || PassesPayoffGate(out_decision.mr_signal,ctx,out_decision.regime,atr_points,or_width_points,mr_stop_pts,mr_target_pts,mr_spread_pts,mr_slip_pts,mr_payoff_detail));
 
       out_decision.eligible_orb=(out_decision.orb_signal.valid && orb_payoff_ok);
       out_decision.eligible_mr=(out_decision.mr_signal.valid && mr_payoff_ok);
@@ -193,13 +189,11 @@ public:
          bool subtype_allowed=(out_decision.orb_signal.subtype=="ORB_BREAK_RETEST_HOLD" || out_decision.orb_signal.subtype=="ORB_TWO_BAR_CONFIRM");
          bool weak_subtype=(out_decision.orb_signal.subtype=="ORB_DIRECT_BREAK" || out_decision.orb_signal.subtype=="ORB_BREAK_PAUSE_CONTINUE");
          bool strong_m15=(ctx.m15.slope_strength>=XDF_MR_REGIME_ORB_OVERRIDE_M15_SLOPE);
-         bool width_clean=(!out_decision.or_width_secondary_allow);
          bool breakout_override=(subtype_allowed &&
                                 !weak_subtype &&
                                 out_decision.orb_score_final>=XDF_MR_REGIME_ORB_OVERRIDE_SCORE &&
                                 out_decision.orb_signal.net_rr>=XDF_MR_REGIME_ORB_OVERRIDE_NET_RR &&
-                                strong_m15 &&
-                                width_clean);
+                                strong_m15);
          if(!breakout_override)
            {
            out_decision.eligible_orb=false;
@@ -259,9 +253,9 @@ public:
             }
           else if(out_decision.regime==REGIME_MEAN_REVERSION)
              {
-              if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.10)
+              if(out_decision.orb_signal.net_rr>=out_decision.mr_signal.net_rr+0.10)
                  out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.10)
+              else if(out_decision.mr_signal.net_rr>=out_decision.orb_signal.net_rr+0.10)
                  out_decision.selected_signal=out_decision.mr_signal;
               else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
                  out_decision.selected_signal=out_decision.orb_signal;
@@ -282,9 +276,9 @@ public:
             }
           else
              {
-              if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.10)
+              if(out_decision.orb_signal.net_rr>=out_decision.mr_signal.net_rr+0.10)
                  out_decision.selected_signal=out_decision.orb_signal;
-              else if(out_decision.mr_signal.net_rr>out_decision.orb_signal.net_rr+0.10)
+              else if(out_decision.mr_signal.net_rr>=out_decision.orb_signal.net_rr+0.10)
                  out_decision.selected_signal=out_decision.mr_signal;
               else if(out_decision.orb_signal.net_rr>out_decision.mr_signal.net_rr+0.001)
                  out_decision.selected_signal=out_decision.orb_signal;
@@ -516,6 +510,65 @@ public:
              return(false);
             }
         }
+
+      if(out_decision.regime==REGIME_MEAN_REVERSION &&
+         out_decision.selected_family==SETUP_ORB_CONTINUATION &&
+         out_decision.orb_override_reason!="EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION")
+        {
+         out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
+         out_decision.blocker.code=BLOCKER_REGIME;
+         out_decision.blocker.message="runtime_orb_blocked_in_mean_reversion";
+         out_decision.selected_reject_reason="runtime_orb_blocked_in_mean_reversion";
+         return(false);
+        }
+      if(out_decision.regime==REGIME_MEAN_REVERSION &&
+         out_decision.selected_family==SETUP_ORB_CONTINUATION &&
+         out_decision.or_width_secondary_allow)
+        {
+         out_decision.blocker.code=BLOCKER_REGIME;
+         out_decision.blocker.message="runtime_orb_blocked_secondary_width_allowance";
+         out_decision.selected_reject_reason="runtime_orb_blocked_in_mean_reversion";
+         return(false);
+        }
+
+      double selected_stop_pts=(ctx.point>0.0?out_decision.selected_signal.stop_distance/ctx.point:0.0);
+      double selected_target_pts=(ctx.point>0.0?out_decision.selected_signal.target_distance/ctx.point:0.0);
+      XDFGeometryMetrics selected_metrics;
+      string selected_geometry_reason;
+      bool selected_geometry_ok=XDF_PassesGeometryPolicy(out_decision.selected_family,
+                                                         out_decision.selected_signal.subtype,
+                                                         out_decision.regime,
+                                                         selected_stop_pts,
+                                                         selected_target_pts,
+                                                         ctx.spread_points,
+                                                         ctx.expected_slippage_points,
+                                                         atr_points,
+                                                         or_width_points,
+                                                         selected_metrics,
+                                                         selected_geometry_reason);
+      out_decision.selected_signal.stop_points=selected_stop_pts;
+      out_decision.selected_signal.target_points=selected_target_pts;
+      out_decision.selected_signal.atr_points=atr_points;
+      out_decision.selected_signal.or_width_points=or_width_points;
+      out_decision.selected_signal.spread_points=ctx.spread_points;
+      out_decision.selected_signal.slip_points=ctx.expected_slippage_points;
+      out_decision.selected_signal.gross_rr=selected_metrics.gross_rr;
+      out_decision.selected_signal.net_target_points=selected_metrics.net_target_points;
+      out_decision.selected_signal.net_rr=selected_metrics.net_rr;
+      if(!selected_geometry_ok)
+        {
+         out_decision.blocker.code=BLOCKER_PAYOFF;
+         out_decision.blocker.message=StringFormat("final_selected_geometry_fail reason=%s family=%d subtype=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
+                                                   selected_geometry_reason,(int)out_decision.selected_family,out_decision.selected_signal.subtype,
+                                                   selected_stop_pts,selected_target_pts,ctx.spread_points,ctx.expected_slippage_points,selected_metrics.net_rr);
+         out_decision.selected_signal.reason_invalid=selected_geometry_reason;
+         out_decision.selected_reject_reason="final_selected_candidate_failed_geometry";
+         return(false);
+        }
+      out_decision.stop_dist_points=selected_stop_pts;
+      out_decision.target_dist_points=selected_target_pts;
+      out_decision.spread_points=ctx.spread_points;
+      out_decision.expected_slip_points=ctx.expected_slippage_points;
 
       out_decision.has_setup=true;
       out_decision.allow_trade=true;
