@@ -34,7 +34,10 @@ private:
       s.postbreak_reject_reason="";
       s.confirm_buffer_pts=0.0;
       s.bars_since_initial_break=0;
-     }
+      s.clean_trend_lane=false;
+      s.orb_lifecycle=ORB_LIFE_NONE;
+      s.mr_lifecycle=MR_LIFE_SUBTYPE_FORMED;
+      }
    double XDF_LongMRStructuralStop(const double sweep_low,const double atr,const double entry)
      {
       double stop=sweep_low-atr*0.08;
@@ -70,6 +73,7 @@ private:
          {
           s.valid=false;
           s.reason_invalid=StringFormat("%s source_geom_regime=%s",reason,XDF_LocalRegimeToString(regime));
+          s.mr_lifecycle=MR_LIFE_GEOMETRY_REJECT;
           return(false);
          }
        return(true);
@@ -166,6 +170,9 @@ public:
       s.postbreak_reject_reason="";
       s.confirm_buffer_pts=0.0;
       s.bars_since_initial_break=0;
+      s.clean_trend_lane=false;
+      s.orb_lifecycle=ORB_LIFE_NONE;
+      s.mr_lifecycle=MR_LIFE_SUBTYPE_FORMED;
       return(s);
      }
 
@@ -175,6 +182,8 @@ public:
       s.reason_invalid=reason;
       if(s.subtype=="")
          s.subtype="NONE";
+      if(StringFind(reason,"GEOMETRY")>=0 || StringFind(reason,"geometry")>=0)
+         s.mr_lifecycle=MR_LIFE_GEOMETRY_REJECT;
      }
 
    XDFSignal EvaluateAt(const string symbol,

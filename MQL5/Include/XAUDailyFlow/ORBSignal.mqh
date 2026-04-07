@@ -96,7 +96,7 @@ private:
       double body_ratio=(range>0.0?body/range:0.0);
       double close_loc=(range>0.0?(bars[0].close-bars[0].low)/range:0.5);
       bool close_location_ok=(long_dir?(close_loc>=0.65):(close_loc<=0.35));
-      bool clean_trend=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated);
+      bool clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated);
 
       if(subtype=="ORB_DIRECT_BREAK")
         {
@@ -167,7 +167,9 @@ private:
             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
-          confirm_buffer_pts_out=(clean_trend?MathMax(0.15*atr_pts,1.25*spread_pts):MathMax(0.12*atr_pts,1.25*spread_pts));
+          confirm_buffer_pts_out=(clean_trend_lane && bars_since_break_out>=5?
+                                  MathMax(0.16*atr_pts,1.35*spread_pts):
+                                  MathMax(0.12*atr_pts,1.25*spread_pts));
           if(confirm_close_pts<confirm_buffer_pts_out)
             {
              reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
@@ -189,31 +191,26 @@ private:
             if(!close_beyond && close_dist<=boundary_churn_band)
                boundary_churn_count++;
            }
-          if(boundary_churn_count>=2 && !path1)
-            {
-             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
-             return(false);
-            }
-          if(clean_trend && bars_since_break_out>=5 && boundary_churn_count>0)
-            {
-             reason_out="ORB_PAUSE_CONTINUE_DIRTY_SEQUENCE";
-             return(false);
-            }
+         if(boundary_churn_count>=2 && !path1)
+           {
+            reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+            return(false);
+           }
 
           postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
           if(regime==REGIME_MIXED && bars_since_break_out==2)
             {
              double mixed_buffer_min=MathMax(0.20*atr_pts,1.6*spread_pts);
-            if(postbreak_quality_score_out<92.0 || net_rr<1.45 || confirm_close_pts<mixed_buffer_min)
+             if(postbreak_quality_score_out<92.0 || net_rr<1.45 || confirm_close_pts<mixed_buffer_min)
               {
                reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
                return(false);
               }
            }
-          if(clean_trend && bars_since_break_out>=5)
+          if(clean_trend_lane && bars_since_break_out>=5)
             {
-             double trend_late_buffer_min=MathMax(0.15*atr_pts,1.25*spread_pts);
-             if(postbreak_quality_score_out<86.0 || net_rr<1.30 || confirm_close_pts<trend_late_buffer_min)
+             double trend_late_buffer_min=MathMax(0.16*atr_pts,1.35*spread_pts);
+             if(postbreak_quality_score_out<88.0 || net_rr<1.35 || confirm_close_pts<trend_late_buffer_min || boundary_churn_count>0)
                {
                 reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
                 return(false);
@@ -229,27 +226,23 @@ private:
               reason_out="ORB_TWO_BAR_CONFIRM_BOTH_SIDES_VIOLATED";
               return(false);
              }
-          if(bars_since_break_out>3)
+         if(bars_since_break_out>3)
            {
             reason_out="ORB_TWO_BAR_CONFIRM_TOO_LATE";
             return(false);
            }
-          double first_range=(bars[1].high-bars[1].low);
-          double first_body=MathAbs(bars[1].close-bars[1].open);
-          double first_body_ratio=(first_range>0.0?first_body/first_range:0.0);
-          double second_range=(bars[0].high-bars[0].low);
-          double second_body=MathAbs(bars[0].close-bars[0].open);
-          double second_body_ratio=(second_range>0.0?second_body/second_range:0.0);
+         double first_range=(bars[1].high-bars[1].low);
+         double first_body=MathAbs(bars[1].close-bars[1].open);
+         double first_body_ratio=(first_range>0.0?first_body/first_range:0.0);
+         double second_range=(bars[0].high-bars[0].low);
+         double second_body=MathAbs(bars[0].close-bars[0].open);
+         double second_body_ratio=(second_range>0.0?second_body/second_range:0.0);
           bool first_directional=(long_dir?(bars[1].close>bars[1].open):(bars[1].close<bars[1].open));
           bool second_directional=(long_dir?(bars[0].close>bars[0].open):(bars[0].close<bars[0].open));
-          double second_close_clear_min=(clean_trend?MathMax(0.12*atr_pts,1.10*spread_pts):MathMax(0.14*atr_pts,1.20*spread_pts));
+          double second_close_clear_min=(clean_trend_lane?MathMax(0.12*atr_pts,1.10*spread_pts):MathMax(0.14*atr_pts,1.20*spread_pts));
           confirm_buffer_pts_out=second_close_clear_min;
-          bool weak_confirm=false;
-          if(clean_trend)
-             weak_confirm=(!first_directional || !second_directional || second_body_ratio<0.28 || confirm_close_pts<second_close_clear_min);
-          else
-             weak_confirm=(first_body_ratio<0.30 || second_body_ratio<0.30 || confirm_close_pts<second_close_clear_min);
-          if(weak_confirm)
+          if((clean_trend_lane && (!first_directional || !second_directional || second_body_ratio<0.28 || confirm_close_pts<second_close_clear_min)) ||
+             (!clean_trend_lane && (first_body_ratio<0.30 || second_body_ratio<0.30 || confirm_close_pts<second_close_clear_min)))
             {
              reason_out="ORB_TWO_BAR_CONFIRM_WEAK_SECOND_CLOSE";
              return(false);
@@ -281,7 +274,7 @@ private:
 
       if(subtype=="ORB_BREAK_RETEST_HOLD")
         {
-          if(both_sides_violated)
+          if(both_sides_violated && !clean_trend_lane)
             {
              reason_out="ORB_RETEST_HOLD_BOTH_SIDES_DIRTY";
              return(false);
@@ -355,7 +348,7 @@ private:
             return(false);
            }
          double acceptance_clear_pts=(long_dir?(bars[first_accept_idx].close-edge):(edge-bars[first_accept_idx].close))/point;
-          double acceptance_clear_min=(clean_trend?MathMax(0.10*atr_pts,1.05*spread_pts):MathMax(0.12*atr_pts,1.10*spread_pts));
+          double acceptance_clear_min=(clean_trend_lane?MathMax(0.10*atr_pts,1.05*spread_pts):MathMax(0.12*atr_pts,1.10*spread_pts));
           if(acceptance_clear_pts<acceptance_clear_min)
             {
              reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
@@ -399,15 +392,19 @@ private:
       s.postbreak_reject_reason="";
       s.confirm_buffer_pts=0.0;
       s.bars_since_initial_break=0;
-     }
+      s.clean_trend_lane=false;
+      s.orb_lifecycle=ORB_LIFE_SUBTYPE_FORMED;
+      s.mr_lifecycle=MR_LIFE_NONE;
+      }
    bool XDF_ValidateORBGeometry(XDFSignal &s,const string subtype,const XDFRegime regime,const double point,const double atr,const double or_width,const double spread_points,const double slip_points)
       {
-       if(!s.valid || point<=0.0 || atr<=0.0 || or_width<=0.0)
-         {
-          s.valid=false;
-          s.reason_invalid=StringFormat("ORB_GEOMETRY_INVALID_INPUTS source_geom_regime=%s",XDF_LocalRegimeToString(regime));
-          return(false);
-         }
+        if(!s.valid || point<=0.0 || atr<=0.0 || or_width<=0.0)
+          {
+           s.valid=false;
+           s.reason_invalid=StringFormat("ORB_GEOMETRY_INVALID_INPUTS source_geom_regime=%s",XDF_LocalRegimeToString(regime));
+           s.orb_lifecycle=ORB_LIFE_GEOMETRY_REJECT;
+           return(false);
+          }
 
        XDF_SetGeometryMetrics(s,point,atr,or_width,spread_points,slip_points);
        XDFGeometryMetrics metrics;
@@ -417,12 +414,13 @@ private:
        s.net_target_points=metrics.net_target_points;
        s.net_rr=metrics.net_rr;
        s.reason=StringFormat("%s source_geom_regime=%s",subtype,XDF_LocalRegimeToString(regime));
-       if(!pass)
-         {
-          s.valid=false;
-          s.reason_invalid=StringFormat("%s source_geom_regime=%s",reason,XDF_LocalRegimeToString(regime));
-          return(false);
-         }
+        if(!pass)
+          {
+           s.valid=false;
+           s.reason_invalid=StringFormat("%s source_geom_regime=%s",reason,XDF_LocalRegimeToString(regime));
+           s.orb_lifecycle=ORB_LIFE_GEOMETRY_REJECT;
+           return(false);
+          }
        return(true);
       }
    double XDF_LongORBStructuralStop(const double structure_low,const double atr,const XDFOpeningRange &or_data,const double entry,const double min_stop_distance)
@@ -472,11 +470,21 @@ public:
      }
 
    bool IsBetter(const XDFSignal &candidate,const XDFSignal &current_best)
-     {
-      if(!candidate.valid)
-         return(false);
-      if(!current_best.valid)
+      {
+       if(!candidate.valid)
+          return(false);
+       if(!current_best.valid)
+          return(true);
+      int candidate_subtype_quality=candidate.subtype_quality;
+      int current_subtype_quality=current_best.subtype_quality;
+      if(candidate.clean_trend_lane && candidate.postbreak_quality_score>=85.0)
+         candidate_subtype_quality+=2;
+      if(current_best.clean_trend_lane && current_best.postbreak_quality_score>=85.0)
+         current_subtype_quality+=2;
+      if(candidate.clean_trend_lane && !current_best.clean_trend_lane)
          return(true);
+      if(!candidate.clean_trend_lane && current_best.clean_trend_lane)
+         return(false);
       if(candidate.net_rr>=current_best.net_rr+0.10)
          return(true);
       if(candidate.net_rr<=current_best.net_rr-0.10)
@@ -508,12 +516,12 @@ public:
          return(true);
       if(candidate.raw_structure_quality<current_best.raw_structure_quality)
          return(false);
-      if(candidate.subtype_quality>current_best.subtype_quality)
+      if(candidate_subtype_quality>current_subtype_quality)
          return(true);
-      if(candidate.subtype_quality<current_best.subtype_quality)
+      if(candidate_subtype_quality<current_subtype_quality)
          return(false);
       return(candidate.extension_penalty<current_best.extension_penalty);
-     }
+      }
 
    XDFSignal BuildSignal(const int direction,const string subtype,const int subtype_quality,const int retest_quality,const int confirmation_quality,const int level_hold_quality,const int raw_context_quality,const MqlRates &trigger,const double entry,const double stop,const double tp,const double vwap,const double extension_penalty)
      {
@@ -549,6 +557,9 @@ public:
       s.postbreak_reject_reason="";
       s.confirm_buffer_pts=0.0;
       s.bars_since_initial_break=0;
+      s.clean_trend_lane=false;
+      s.orb_lifecycle=ORB_LIFE_SUBTYPE_FORMED;
+      s.mr_lifecycle=MR_LIFE_NONE;
       return(s);
      }
 
@@ -558,6 +569,10 @@ public:
       s.reason_invalid=reason;
       if(s.subtype=="")
          s.subtype="NONE";
+      if(StringFind(reason,"GEOMETRY")>=0 || StringFind(reason,"geometry")>=0)
+         s.orb_lifecycle=ORB_LIFE_GEOMETRY_REJECT;
+      else if(StringFind(reason,"POSTBREAK")>=0 || StringFind(reason,"ORB_")>=0)
+         s.orb_lifecycle=ORB_LIFE_POSTBREAK_REJECT;
      }
    void TrackRejectedPostBreakCandidate(const XDFSignal &candidate,XDFSignal &best_rejected,bool &has_rejected) const
      {
@@ -644,6 +659,8 @@ public:
                 candidate.bars_since_initial_break=bars_since_break;
                 candidate.postbreak_quality_score=postbreak_score;
                 candidate.postbreak_quality_pass=postbreak_ok;
+                candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                            (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
                 if(!postbreak_ok)
                   {
                    candidate.postbreak_reject_reason=postbreak_reason;
@@ -674,6 +691,8 @@ public:
                 candidate.bars_since_initial_break=bars_since_break;
                 candidate.postbreak_quality_score=postbreak_score;
                 candidate.postbreak_quality_pass=postbreak_ok;
+                candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                            (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
                 if(!postbreak_ok)
                   {
                    candidate.postbreak_reject_reason=postbreak_reason;
@@ -705,6 +724,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -734,6 +755,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -763,6 +786,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -791,6 +816,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -820,6 +847,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -848,6 +877,8 @@ public:
             candidate.bars_since_initial_break=bars_since_break;
             candidate.postbreak_quality_score=postbreak_score;
             candidate.postbreak_quality_pass=postbreak_ok;
+            candidate.clean_trend_lane=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated &&
+                                        (candidate.subtype=="ORB_BREAK_PAUSE_CONTINUE" || candidate.subtype=="ORB_TWO_BAR_CONFIRM" || candidate.subtype=="ORB_BREAK_RETEST_HOLD"));
             if(!postbreak_ok)
               {
                candidate.postbreak_reject_reason=postbreak_reason;
@@ -862,7 +893,11 @@ public:
       if(!best.valid && has_rejected_postbreak)
          best=best_rejected_postbreak;
       if(!best.valid && best.reason_invalid=="")
-         MarkInvalid(best,"NO_ORB_SUBTYPE_MATCH");
+        {
+         best.subtype="NO_SUBTYPE";
+         best.orb_lifecycle=ORB_LIFE_NONE;
+         MarkInvalid(best,"no_orb_subtype_match");
+        }
       return(best);
      }
 

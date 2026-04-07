@@ -57,6 +57,27 @@ enum XDFSessionId
    SESSION_NEWYORK= 1
   };
 
+enum XDFORBLifecycle
+  {
+   ORB_LIFE_NONE               = 0,
+   ORB_LIFE_SUBTYPE_FORMED     = 1,
+   ORB_LIFE_GEOMETRY_REJECT    = 2,
+   ORB_LIFE_POSTBREAK_REJECT   = 3,
+   ORB_LIFE_REGIME_REJECT      = 4,
+   ORB_LIFE_SELECTED           = 5,
+   ORB_LIFE_SENT               = 6
+  };
+
+enum XDFMRLifecycle
+  {
+   MR_LIFE_NONE               = 0,
+   MR_LIFE_SUBTYPE_FORMED     = 1,
+   MR_LIFE_GEOMETRY_REJECT    = 2,
+   MR_LIFE_REGIME_REJECT      = 3,
+   MR_LIFE_SELECTED           = 4,
+   MR_LIFE_SENT               = 5
+  };
+
 const double XDF_EXPECTED_SLIPPAGE_MIN_POINTS=2.0;
 const double XDF_EXPECTED_SLIPPAGE_SPREAD_FACTOR=0.15;
 const double XDF_EXPECTED_SLIPPAGE_CAP_POINTS=8.0;
@@ -136,6 +157,9 @@ struct XDFSignal
    string            postbreak_reject_reason;
    double            confirm_buffer_pts;
    int               bars_since_initial_break;
+   bool              clean_trend_lane;
+   XDFORBLifecycle   orb_lifecycle;
+   XDFMRLifecycle    mr_lifecycle;
    };
 
 struct XDFScoreBreakdown
@@ -248,6 +272,8 @@ struct XDFDecision
    bool              orb_postbreak_validator_entered;
    bool              orb_rejected_by_postbreak;
    string            orb_reject_stage;
+   XDFORBLifecycle   orb_lifecycle;
+   XDFMRLifecycle    mr_lifecycle;
    };
 
 struct XDFSymbolSpecs

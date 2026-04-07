@@ -144,16 +144,16 @@ private:
          if(b.stop_points+0.1<a.stop_points)
             return(false);
         }
-      if(a_score>b_score)
-         return(true);
-      if(a_score<b_score)
-         return(false);
       if(a.raw_structure_quality>b.raw_structure_quality)
          return(true);
       if(a.raw_structure_quality<b.raw_structure_quality)
          return(false);
+      if(a_score>b_score)
+         return(true);
+      if(a_score<b_score)
+         return(false);
       return(a.subtype_quality>=b.subtype_quality);
-     }
+      }
 public:
    void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const XDFRegime regime,const bool both_sides_violated,XDFSignal &orb,XDFSignal &mr)
         {
@@ -190,6 +190,8 @@ public:
       out_decision.orb_postbreak_validator_entered=false;
       out_decision.orb_rejected_by_postbreak=false;
       out_decision.orb_reject_stage="";
+      out_decision.orb_lifecycle=ORB_LIFE_NONE;
+      out_decision.mr_lifecycle=MR_LIFE_NONE;
       bool both_sides=(ctx.session.touched_above && ctx.session.touched_below);
       out_decision.regime=m_regime.Detect(ctx.or_data,ctx.atr_m5,ctx.vwap,ctx.mid_price,both_sides,ctx.m15,out_decision.regime_reason);
 
@@ -204,11 +206,18 @@ public:
       EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
-      out_decision.orb_subtype_formed=(out_decision.orb_subtype!="" &&
-                                       out_decision.orb_subtype!="NONE" &&
-                                       out_decision.orb_subtype!="NO_SUBTYPE");
-      bool orb_no_subtype_match=(!out_decision.orb_subtype_formed &&
-                                 out_decision.orb_signal.reason_invalid=="NO_ORB_SUBTYPE_MATCH");
+      if(out_decision.orb_signal.valid &&
+         out_decision.regime==REGIME_TREND_CONTINUATION &&
+         !both_sides &&
+         out_decision.orb_signal.clean_trend_lane &&
+         ((out_decision.orb_signal.direction>0 && ctx.m15.trend_alignment<0) ||
+          (out_decision.orb_signal.direction<0 && ctx.m15.trend_alignment>0)))
+        {
+         out_decision.orb_signal.valid=false;
+         out_decision.orb_signal.reason_invalid="ORB_CLEAN_TREND_M15_MISALIGN";
+         out_decision.orb_lifecycle=ORB_LIFE_REGIME_REJECT;
+        }
+      out_decision.orb_subtype_formed=(out_decision.orb_subtype!="" && out_decision.orb_subtype!="NONE" && out_decision.orb_subtype!="NO_SUBTYPE");
       out_decision.orb_postbreak_validator_entered=(out_decision.orb_signal.postbreak_quality_pass ||
                                                     out_decision.orb_signal.postbreak_reject_reason!="" ||
                                                     out_decision.orb_signal.confirm_buffer_pts>0.0 ||
@@ -218,14 +227,19 @@ public:
                                               out_decision.orb_postbreak_validator_entered &&
                                               !out_decision.orb_signal.postbreak_quality_pass &&
                                               out_decision.orb_signal.postbreak_reject_reason!="");
+      if(out_decision.orb_subtype_formed)
+         out_decision.orb_lifecycle=ORB_LIFE_SUBTYPE_FORMED;
+      if(out_decision.mr_subtype!="" && out_decision.mr_subtype!="NONE")
+         out_decision.mr_lifecycle=MR_LIFE_SUBTYPE_FORMED;
       if(out_decision.orb_rejected_by_postbreak)
         {
          out_decision.last_orb_reject_subtype=(out_decision.orb_signal.subtype!=""?out_decision.orb_signal.subtype:out_decision.orb_subtype);
          out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
          out_decision.last_orb_reject_stage="POSTBREAK";
          out_decision.orb_reject_stage="POSTBREAK";
+         out_decision.orb_lifecycle=ORB_LIFE_POSTBREAK_REJECT;
         }
-      else if(orb_no_subtype_match)
+      else if(!out_decision.orb_subtype_formed && out_decision.orb_signal.reason_invalid=="no_orb_subtype_match")
         {
          out_decision.last_orb_reject_subtype="NO_SUBTYPE";
          out_decision.last_orb_reject_reason="no_orb_subtype_match";
@@ -244,6 +258,7 @@ public:
       if(out_decision.orb_signal.valid &&
          out_decision.regime==REGIME_TREND_CONTINUATION &&
          !both_sides &&
+         out_decision.orb_signal.clean_trend_lane &&
          out_decision.orb_signal.postbreak_quality_score>=85.0)
          out_decision.orb_score_final+=2;
       out_decision.mr_penalty_applied=false;
@@ -275,10 +290,12 @@ public:
          if(!breakout_override)
            {
             out_decision.eligible_orb=false;
-           out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
-           out_decision.orb_signal.valid=false;
-           out_decision.orb_signal.reason_invalid="MEAN_REVERSION_DEFAULT_BLOCK";
-           }
+            out_decision.orb_block_reason="MEAN_REVERSION_DEFAULT_BLOCK";
+            out_decision.orb_signal.valid=false;
+            out_decision.orb_signal.reason_invalid="MEAN_REVERSION_DEFAULT_BLOCK";
+            if(out_decision.orb_subtype_formed)
+               out_decision.orb_lifecycle=ORB_LIFE_REGIME_REJECT;
+            }
          else
            {
             out_decision.orb_override_reason="EXCEPTIONAL_BREAKOUT_IN_MEAN_REVERSION";
@@ -294,12 +311,14 @@ public:
             out_decision.mr_exceptional_allowed=true;
             out_decision.mr_override_reason=exceptional_reason;
            }
-         else
-           {
-            out_decision.eligible_mr=false;
-            out_decision.mr_block_reason="TREND_CONTINUATION_DEFAULT_BLOCK";
-            out_decision.selected_reject_reason=StringFormat("mr_blocked_%s",exceptional_reason);
-           }
+          else
+            {
+             out_decision.eligible_mr=false;
+             out_decision.mr_block_reason="TREND_CONTINUATION_DEFAULT_BLOCK";
+             out_decision.selected_reject_reason=StringFormat("mr_blocked_%s",exceptional_reason);
+             if(out_decision.mr_subtype!="" && out_decision.mr_subtype!="NONE")
+                out_decision.mr_lifecycle=MR_LIFE_REGIME_REJECT;
+            }
         }
 
       if(out_decision.eligible_orb && out_decision.eligible_mr)
@@ -366,33 +385,26 @@ public:
       if(!out_decision.selected_signal.valid)
         {
          bool orb_postbreak_failed=out_decision.orb_rejected_by_postbreak;
-         if(orb_postbreak_failed && !out_decision.eligible_mr)
+         bool postbreak_identity_ok=(out_decision.orb_subtype_formed &&
+                                     out_decision.orb_postbreak_validator_entered &&
+                                     out_decision.orb_rejected_by_postbreak &&
+                                     out_decision.last_orb_reject_subtype!="" &&
+                                     out_decision.last_orb_reject_subtype!="NONE" &&
+                                     out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
+                                     out_decision.last_orb_reject_reason!="" &&
+                                     out_decision.last_orb_reject_reason!="(null)");
+         if(orb_postbreak_failed && postbreak_identity_ok && !out_decision.eligible_mr)
            {
-             bool valid_postbreak_identity=(out_decision.last_orb_reject_subtype!="" &&
-                                            out_decision.last_orb_reject_subtype!="NONE" &&
-                                            out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
-                                            out_decision.last_orb_reject_reason!="" &&
-                                            out_decision.last_orb_reject_reason!="(null)");
-             if(!valid_postbreak_identity)
-               {
-                out_decision.blocker.code=BLOCKER_NO_SETUP;
-                out_decision.blocker.message="no_orb_subtype_match";
-                out_decision.last_orb_reject_subtype="NO_SUBTYPE";
-                out_decision.last_orb_reject_reason="no_orb_subtype_match";
-                out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
-                out_decision.orb_reject_stage="NO_SUBTYPE_FORMED";
-                out_decision.selected_reject_reason="no_orb_subtype_match";
-                return(false);
-               }
-             out_decision.selected_family=SETUP_ORB_CONTINUATION;
-             out_decision.selected_signal=out_decision.orb_signal;
-             out_decision.selected_score=out_decision.orb_score;
+            out_decision.selected_family=SETUP_ORB_CONTINUATION;
+            out_decision.selected_signal=out_decision.orb_signal;
+            out_decision.selected_score=out_decision.orb_score;
             out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
             out_decision.blocker.message=out_decision.orb_signal.postbreak_reject_reason;
              out_decision.last_orb_reject_subtype=(out_decision.orb_signal.subtype!=""?out_decision.orb_signal.subtype:out_decision.orb_subtype);
              out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
              out_decision.last_orb_reject_stage="POSTBREAK";
              out_decision.orb_reject_stage="POSTBREAK";
+             out_decision.orb_lifecycle=ORB_LIFE_POSTBREAK_REJECT;
              out_decision.selection_reason="ORB_POSTBREAK_REJECT";
              out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
              return(false);
@@ -427,7 +439,7 @@ public:
             out_decision.blocker.message=StringFormat("payoff_gate orb_ok=%s orb=%s mr_ok=%s mr=%s",(orb_payoff_ok?"Y":"N"),orb_payoff_detail,(mr_payoff_ok?"Y":"N"),mr_payoff_detail);
             out_decision.selected_reject_reason="payoff";
            }
-         else if(orb_no_subtype_match)
+         else if(!out_decision.orb_subtype_formed && out_decision.orb_signal.reason_invalid=="no_orb_subtype_match")
            {
             out_decision.blocker.code=BLOCKER_NO_SETUP;
             out_decision.blocker.message="no_orb_subtype_match";
@@ -436,6 +448,7 @@ public:
             out_decision.last_orb_reject_reason="no_orb_subtype_match";
             out_decision.last_orb_reject_stage="NO_SUBTYPE_FORMED";
             out_decision.orb_reject_stage="NO_SUBTYPE_FORMED";
+            out_decision.orb_lifecycle=ORB_LIFE_NONE;
            }
          else
            {
@@ -447,18 +460,20 @@ public:
         }
 
       if(out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-          out_decision.orb_rejected_by_postbreak &&
-          out_decision.orb_subtype_formed &&
-          out_decision.last_orb_reject_reason!="" &&
-          out_decision.last_orb_reject_subtype!="" &&
-          out_decision.last_orb_reject_subtype!="NONE" &&
-          out_decision.last_orb_reject_subtype!="NO_SUBTYPE")
+         out_decision.orb_subtype_formed &&
+         out_decision.orb_postbreak_validator_entered &&
+         out_decision.orb_rejected_by_postbreak &&
+         out_decision.last_orb_reject_subtype!="" &&
+         out_decision.last_orb_reject_subtype!="NONE" &&
+         out_decision.last_orb_reject_subtype!="NO_SUBTYPE" &&
+         out_decision.last_orb_reject_reason!="" &&
+         out_decision.last_orb_reject_reason!="(null)")
         {
-         string postbreak_reason=out_decision.last_orb_reject_reason;
-         if(postbreak_reason=="")
-            postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
+         string postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
          if(postbreak_reason=="")
             postbreak_reason=out_decision.selected_signal.reason_invalid;
+         if(postbreak_reason=="")
+            postbreak_reason="ORB_POSTBREAK_QUALITY_FAILED";
          if(out_decision.last_orb_reject_subtype=="")
             out_decision.last_orb_reject_subtype=(out_decision.selected_signal.subtype!=""?out_decision.selected_signal.subtype:out_decision.orb_subtype);
          if(out_decision.last_orb_reject_reason=="")
@@ -466,6 +481,7 @@ public:
          if(out_decision.last_orb_reject_stage=="")
             out_decision.last_orb_reject_stage="POSTBREAK";
          out_decision.orb_reject_stage="POSTBREAK";
+         out_decision.orb_lifecycle=ORB_LIFE_POSTBREAK_REJECT;
          out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
          out_decision.blocker.message=postbreak_reason;
          out_decision.selected_reject_reason=postbreak_reason;
@@ -659,6 +675,10 @@ public:
                                                    selected_stop_pts,selected_target_pts,ctx.spread_points,ctx.expected_slippage_points,selected_metrics.net_rr);
          out_decision.selected_signal.reason_invalid=selected_geometry_reason;
          out_decision.selected_reject_reason="final_selected_candidate_failed_geometry";
+         if(out_decision.selected_family==SETUP_ORB_CONTINUATION)
+            out_decision.orb_lifecycle=ORB_LIFE_GEOMETRY_REJECT;
+         else if(out_decision.selected_family==SETUP_MEAN_REVERSION)
+            out_decision.mr_lifecycle=MR_LIFE_GEOMETRY_REJECT;
          return(false);
         }
       out_decision.stop_dist_points=selected_stop_pts;
@@ -668,6 +688,10 @@ public:
 
       out_decision.has_setup=true;
       out_decision.allow_trade=true;
+      if(out_decision.selected_family==SETUP_ORB_CONTINUATION)
+         out_decision.orb_lifecycle=ORB_LIFE_SELECTED;
+      else if(out_decision.selected_family==SETUP_MEAN_REVERSION)
+         out_decision.mr_lifecycle=MR_LIFE_SELECTED;
       if(out_decision.selected_reject_reason=="")
          out_decision.selected_reject_reason="accepted";
       if(out_decision.selection_reason=="")
