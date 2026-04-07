@@ -269,6 +269,8 @@ struct XDFGeometryMetrics
    double            net_rr;
   };
 
+// Unified minimum net-R policy used by source, decision, and execution gates.
+// Returns family/subtype/regime-specific minimum acceptable net risk-reward ratio.
 double XDF_MinNetRRForFamilyRegimeSubtype(const XDFSetupFamily family,const string subtype,const XDFRegime regime)
   {
    if(family==SETUP_ORB_CONTINUATION)
@@ -311,6 +313,8 @@ double XDF_MaxStopCapPtsForFamily(const XDFSetupFamily family,const double atr_p
    return(1.0e9);
   }
 
+// Single source of truth for geometry validation across source, decision, selected-candidate,
+// and pre-send execution checks. Populates computed metrics and sets reason on failure.
 bool XDF_PassesGeometryPolicy(const XDFSetupFamily family,
                               const string subtype,
                               const XDFRegime regime,

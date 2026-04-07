@@ -179,7 +179,7 @@ bool XDF_BuildDecisionContext(const string symbol,
        out_ctx.entry_long=mid+spread_price*0.5;
        out_ctx.entry_short=mid-spread_price*0.5;
       }
-    // Realistic conservative slippage estimate (min points, spread factor, and cap via shared constants).
+    // Realistic conservative slippage estimate: max(2.0 points, 15% of spread), capped at 8.0.
     out_ctx.expected_slippage_points=MathMin(MathMax(XDF_EXPECTED_SLIPPAGE_MIN_POINTS,out_ctx.spread_points*XDF_EXPECTED_SLIPPAGE_SPREAD_FACTOR),XDF_EXPECTED_SLIPPAGE_CAP_POINTS);
     out_ctx.live_mode=live_mode;
     return(true);

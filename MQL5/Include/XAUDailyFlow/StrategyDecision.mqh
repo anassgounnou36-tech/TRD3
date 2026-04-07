@@ -18,6 +18,7 @@ private:
    // v1.5.4 correction: exceptional counter-trend MR must be elite-only in trend continuation.
    static const int XDF_MR_EXCEPTION_MIN_SCORE;
    // v1.5.4 correction: if ORB is at least this strong, MR override is disallowed.
+   // Intentionally aligned with ORB secondary-allowance minimum score constant.
    static const int XDF_ORB_ACCEPTABLE_QUALITY_SCORE;
    // v1.5.4 correction: exceptional MR needs a clear edge to beat continuation ORB.
    static const int XDF_MR_OVERRIDE_MARGIN_OVER_ORB;
@@ -104,7 +105,7 @@ private:
       bool orb_acceptable_quality=(orb_signal.valid && orb_payoff_ok && orb_score_raw>=XDF_ORB_ACCEPTABLE_QUALITY_SCORE);
       if(orb_acceptable_quality)
         {
-         reason="orb_valid_at_acceptable_quality";
+         reason="orb_acceptable_quality_blocks_mr_override";
          return(false);
         }
       if(ctx.m15.slope_strength>=XDF_M15_STRONG_CONTINUATION_SLOPE)
