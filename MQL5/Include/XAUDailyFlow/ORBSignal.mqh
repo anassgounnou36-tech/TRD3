@@ -138,32 +138,32 @@ private:
 
       if(subtype=="ORB_BREAK_PAUSE_CONTINUE")
         {
-          if(both_sides_violated)
-            {
-             reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
-             return(false);
-            }
-          int hard_cap=(regime==REGIME_MIXED?2:4);
-          if(bars_since_break_out>hard_cap)
-            {
-             reason_out="ORB_PAUSE_CONTINUE_TOO_LATE";
-             return(false);
-            }
-          double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
-          double reentry_tol_price=reentry_tol_pts*point;
-          bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
+         if(both_sides_violated)
+           {
+            reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
+            return(false);
+           }
+         int hard_cap=(regime==REGIME_MIXED?2:6);
+         if(bars_since_break_out>hard_cap)
+           {
+            reason_out="ORB_PAUSE_CONTINUE_TOO_LATE";
+            return(false);
+           }
+         double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
+         double reentry_tol_price=reentry_tol_pts*point;
+         bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
          bool path2_break=XDF_CloseBeyondEdge(bars[2],long_dir,edge);
          bool path2_retest_ok=(long_dir?(bars[1].low>=edge-reentry_tol_price):(bars[1].high<=edge+reentry_tol_price));
          bool path2_reconfirm=XDF_CloseBeyondEdge(bars[0],long_dir,edge);
          bool path2=(path2_break && path2_retest_ok && path2_reconfirm);
-          if(!path1 && !path2)
-            {
-             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
-             return(false);
-            }
-          if(!path2_retest_ok && path2_break)
-            {
-             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
+         if(!path1 && !path2)
+           {
+            reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+            return(false);
+           }
+         if(!path2_retest_ok && path2_break)
+           {
+            reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
          confirm_buffer_pts_out=MathMax(0.12*atr_pts,1.25*spread_pts);
@@ -172,56 +172,117 @@ private:
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
             return(false);
            }
-          if(body_ratio<0.35 || !close_location_ok)
+         if(body_ratio<0.35 || !close_location_ok)
+           {
+            reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
+            return(false);
+           }
+
+         double boundary_churn_band=MathMax(0.06*atr_pts,0.8*spread_pts)*point;
+         int boundary_churn_count=0;
+         int churn_bars=MathMin(4,copied);
+         for(int i=0; i<churn_bars; ++i)
+           {
+            bool close_beyond=XDF_CloseBeyondEdge(bars[i],long_dir,edge);
+            double close_dist=MathAbs(bars[i].close-edge);
+            if(!close_beyond && close_dist<=boundary_churn_band)
+               boundary_churn_count++;
+           }
+         if(boundary_churn_count>=2 && !path1)
+           {
+            reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+            return(false);
+           }
+
+         postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
+         if(regime==REGIME_MIXED && bars_since_break_out==2)
+           {
+            double mixed_buffer_min=MathMax(0.20*atr_pts,1.6*spread_pts);
+            if(postbreak_quality_score_out<92.0 || net_rr<1.45 || confirm_close_pts<mixed_buffer_min)
+              {
+               reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
+               return(false);
+              }
+           }
+         if(regime==REGIME_TREND_CONTINUATION && bars_since_break_out>=5)
+           {
+            double trend_late_buffer_min=MathMax(0.16*atr_pts,1.35*spread_pts);
+            if(postbreak_quality_score_out<88.0 || net_rr<1.35 || confirm_close_pts<trend_late_buffer_min)
+              {
+               reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
+               return(false);
+              }
+           }
+         return(true);
+        }
+
+      if(subtype=="ORB_TWO_BAR_CONFIRM")
+        {
+         if(regime==REGIME_MIXED && both_sides_violated)
             {
-             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
+             reason_out="ORB_TWO_BAR_CONFIRM_BOTH_SIDES_VIOLATED";
              return(false);
             }
-
-          double boundary_churn_band=MathMax(0.06*atr_pts,0.8*spread_pts)*point;
-          int boundary_churn_count=0;
-          int churn_bars=MathMin(4,copied);
-          for(int i=0; i<churn_bars; ++i)
+         if(bars_since_break_out>3)
+           {
+            reason_out="ORB_TWO_BAR_CONFIRM_TOO_LATE";
+            return(false);
+           }
+         double first_range=(bars[1].high-bars[1].low);
+         double first_body=MathAbs(bars[1].close-bars[1].open);
+         double first_body_ratio=(first_range>0.0?first_body/first_range:0.0);
+         double second_range=(bars[0].high-bars[0].low);
+         double second_body=MathAbs(bars[0].close-bars[0].open);
+         double second_body_ratio=(second_range>0.0?second_body/second_range:0.0);
+         double second_close_clear_min=MathMax(0.14*atr_pts,1.20*spread_pts);
+         confirm_buffer_pts_out=second_close_clear_min;
+         if(first_body_ratio<0.30 || second_body_ratio<0.30 || confirm_close_pts<second_close_clear_min)
+           {
+            reason_out="ORB_TWO_BAR_CONFIRM_WEAK_SECOND_CLOSE";
+            return(false);
+           }
+         double reentry_tol_pts=MathMax(0.08*atr_pts,1.0*spread_pts);
+          double reentry_tol_price=reentry_tol_pts*point;
+         double churn_band=MathMax(0.06*atr_pts,0.8*spread_pts)*point;
+         int churn_count=0;
+         bool dirty_reentry=false;
+         int dirty_end=MathMin(first_break_idx-1,copied-1);
+         for(int i=dirty_end; i>=1; --i)
             {
              bool close_beyond=XDF_CloseBeyondEdge(bars[i],long_dir,edge);
              double close_dist=MathAbs(bars[i].close-edge);
-             if(!close_beyond && close_dist<=boundary_churn_band)
-                boundary_churn_count++;
+             bool deep_reentry=(long_dir?(bars[i].low<edge-reentry_tol_price):(bars[i].high>edge+reentry_tol_price));
+             if(deep_reentry)
+                dirty_reentry=true;
+             if(!close_beyond && close_dist<=churn_band)
+                churn_count++;
             }
-          if(boundary_churn_count>=2 && !path1)
-            {
-             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
-             return(false);
-            }
-
-          postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
-          if((regime==REGIME_TREND_CONTINUATION && bars_since_break_out==4) ||
-             (regime==REGIME_MIXED && bars_since_break_out==2))
-            {
-             double late_buffer_min=(regime==REGIME_MIXED?MathMax(0.20*atr_pts,1.6*spread_pts):MathMax(0.18*atr_pts,1.5*spread_pts));
-             double late_score_min=(regime==REGIME_MIXED?92.0:90.0);
-             double late_net_rr_min=(regime==REGIME_MIXED?1.45:1.35);
-             if(postbreak_quality_score_out<late_score_min || net_rr<late_net_rr_min || confirm_close_pts<late_buffer_min)
-               {
-                reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
-                return(false);
-               }
-            }
-          return(true);
-         }
+         if(dirty_reentry || churn_count>=2)
+           {
+            reason_out="ORB_TWO_BAR_CONFIRM_DIRTY_SEQUENCE";
+            return(false);
+           }
+         postbreak_quality_score_out=58.0+MathMin(20.0,confirm_close_pts)+MathMin(12.0,first_body_ratio*18.0)+MathMin(12.0,second_body_ratio*18.0)+MathMax(0.0,8.0-bars_since_break_out);
+         return(true);
+        }
 
       if(subtype=="ORB_BREAK_RETEST_HOLD")
         {
-         if(both_sides_violated)
+         bool exceptional_clean_trend=(regime==REGIME_TREND_CONTINUATION &&
+                                       bars_since_break_out<=2 &&
+                                       net_rr>=1.45 &&
+                                       body_ratio>=0.55 &&
+                                       close_location_ok);
+         if(both_sides_violated && !exceptional_clean_trend)
            {
-            reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
+            reason_out="ORB_RETEST_HOLD_BOTH_SIDES_DIRTY";
             return(false);
            }
-          if(bars_since_break_out>5)
-            {
-             reason_out="ORB_RETEST_HOLD_TOO_LATE";
-             return(false);
-            }
+         if(bars_since_break_out>5)
+           {
+            reason_out="ORB_RETEST_HOLD_TOO_LATE";
+            return(false);
+           }
 
          double reentry_tol_pts=MathMax(0.08*atr_pts,1.00*spread_pts);
          double retest_touch_tol_pts=MathMax(0.06*atr_pts,0.80*spread_pts);
@@ -255,12 +316,12 @@ private:
 
          if(!saw_retest_touch || retest_idx<0)
            {
-            reason_out="ORB_POSTBREAK_RETEST_NO_ACCEPTANCE";
+            reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
             return(false);
            }
          if(saw_deep_reentry || saw_shallow_touch_without_hold)
            {
-            reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
+            reason_out="ORB_RETEST_HOLD_REENTERED_TOO_DEEP";
             return(false);
            }
          if(closes_beyond_after_break<2)
@@ -269,15 +330,27 @@ private:
             return(false);
            }
 
+         int first_accept_idx=-1;
          int closes_after_retest=0;
          for(int i=retest_idx-1; i>=0; --i)
            {
             if(XDF_CloseBeyondEdge(bars[i],long_dir,edge))
+              {
                closes_after_retest++;
+               if(first_accept_idx<0)
+                  first_accept_idx=i;
+              }
            }
-         if(closes_after_retest<1)
+         if(closes_after_retest<1 || first_accept_idx<0)
            {
-            reason_out="ORB_POSTBREAK_RETEST_NO_ACCEPTANCE";
+            reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
+            return(false);
+           }
+         double acceptance_clear_pts=(long_dir?(bars[first_accept_idx].close-edge):(edge-bars[first_accept_idx].close))/point;
+         double acceptance_clear_min=MathMax(0.12*atr_pts,1.10*spread_pts);
+         if(acceptance_clear_pts<acceptance_clear_min)
+           {
+            reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
             return(false);
            }
 

@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v1.5.10-pause-continue-freshness-and-diagnostics-1"
+#define XDF_BUILD_TAG "v1.5.11-continuation-rebalance-and-truthful-subtype-rejects-1"
 
 input string InpSymbol = "";
 
@@ -126,6 +126,14 @@ int g_orb_postbreak_retest_unstable_continuation_count=0;
 int g_orb_pause_continue_too_late_count=0;
 int g_orb_pause_continue_late_quality_too_weak_count=0;
 int g_orb_pause_continue_no_clean_hold_count=0;
+int g_orb_two_bar_confirm_both_sides_violated_count=0;
+int g_orb_two_bar_confirm_weak_second_close_count=0;
+int g_orb_two_bar_confirm_too_late_count=0;
+int g_orb_two_bar_confirm_dirty_sequence_count=0;
+int g_orb_retest_hold_both_sides_dirty_count=0;
+int g_orb_retest_hold_no_acceptance_count=0;
+int g_orb_retest_hold_reentered_too_deep_count=0;
+int g_orb_retest_hold_too_late_count=0;
 string g_last_guard_action="";
 string g_last_guard_reason="";
 datetime g_last_guard_bar=0;
@@ -312,8 +320,22 @@ void XDF_TrackORBDirectBreakVeto(const string reason)
        g_orb_pause_continue_late_quality_too_weak_count++;
     else if(reason=="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD")
        g_orb_pause_continue_no_clean_hold_count++;
+    else if(reason=="ORB_TWO_BAR_CONFIRM_BOTH_SIDES_VIOLATED")
+       g_orb_two_bar_confirm_both_sides_violated_count++;
+    else if(reason=="ORB_TWO_BAR_CONFIRM_WEAK_SECOND_CLOSE")
+       g_orb_two_bar_confirm_weak_second_close_count++;
+    else if(reason=="ORB_TWO_BAR_CONFIRM_TOO_LATE")
+       g_orb_two_bar_confirm_too_late_count++;
+    else if(reason=="ORB_TWO_BAR_CONFIRM_DIRTY_SEQUENCE")
+       g_orb_two_bar_confirm_dirty_sequence_count++;
+    else if(reason=="ORB_RETEST_HOLD_BOTH_SIDES_DIRTY")
+       g_orb_retest_hold_both_sides_dirty_count++;
+    else if(reason=="ORB_RETEST_HOLD_NO_ACCEPTANCE")
+       g_orb_retest_hold_no_acceptance_count++;
+    else if(reason=="ORB_RETEST_HOLD_REENTERED_TOO_DEEP")
+       g_orb_retest_hold_reentered_too_deep_count++;
     else if(reason=="ORB_RETEST_HOLD_TOO_LATE")
-       g_orb_postbreak_late_fragility_count++;
+       g_orb_retest_hold_too_late_count++;
     else
        return;
     g_diag.Log("ORB_DIRECT_BREAK_VETO",reason);
@@ -560,8 +582,8 @@ void OnDeinit(const int reason)
    g_indicators.Release();
    double avg_orb_net_rr=(g_accepted_orb_count>0?g_accepted_orb_net_rr_sum/g_accepted_orb_count:0.0);
    double avg_mr_net_rr=(g_accepted_mr_count>0?g_accepted_mr_net_rr_sum/g_accepted_mr_count:0.0);
-   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d rejected_by_postbreak_quality=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_in_mixed=%d orb_pause_continue_blocked_mixed_weak_hold=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_no_close_confirm=%d orb_direct_break_late_entry=%d orb_pause_continue_too_late=%d orb_pause_continue_late_quality_too_weak=%d orb_pause_continue_no_clean_hold=%d orb_postbreak_reentered_or_too_deep=%d orb_postbreak_wicky_confirm=%d orb_postbreak_both_sides_violated=%d orb_postbreak_close_buffer_too_small=%d orb_postbreak_late_fragility=%d orb_postbreak_retest_no_acceptance=%d orb_postbreak_retest_unstable_continuation=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d",
-                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,g_rejected_by_postbreak_quality_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_in_mixed_count,g_orb_pause_continue_blocked_mixed_weak_hold_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_late_fragility_count,g_orb_pause_continue_too_late_count,g_orb_pause_continue_late_quality_too_weak_count,g_orb_pause_continue_no_clean_hold_count,g_orb_postbreak_reentered_or_too_deep_count,g_orb_postbreak_wicky_confirm_count,g_orb_postbreak_both_sides_violated_count,g_orb_postbreak_close_buffer_too_small_count,g_orb_postbreak_late_fragility_count,g_orb_postbreak_retest_no_acceptance_count,g_orb_postbreak_retest_unstable_continuation_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count));
+   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s accepted_orb=%d accepted_mr=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d rejected_by_postbreak_quality=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_in_mixed=%d orb_pause_continue_blocked_mixed_weak_hold=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_no_close_confirm=%d orb_direct_break_late_entry=%d orb_pause_continue_too_late=%d orb_pause_continue_late_quality_too_weak=%d orb_pause_continue_no_clean_hold=%d orb_two_bar_confirm_both_sides_violated=%d orb_two_bar_confirm_weak_second_close=%d orb_two_bar_confirm_too_late=%d orb_two_bar_confirm_dirty_sequence=%d orb_retest_hold_both_sides_dirty=%d orb_retest_hold_no_acceptance=%d orb_retest_hold_reentered_too_deep=%d orb_retest_hold_too_late=%d orb_postbreak_reentered_or_too_deep=%d orb_postbreak_wicky_confirm=%d orb_postbreak_both_sides_violated=%d orb_postbreak_close_buffer_too_small=%d orb_postbreak_late_fragility=%d orb_postbreak_retest_no_acceptance=%d orb_postbreak_retest_unstable_continuation=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d",
+                                            XDF_BUILD_TAG,g_accepted_orb_count,g_accepted_mr_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,g_rejected_by_postbreak_quality_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_in_mixed_count,g_orb_pause_continue_blocked_mixed_weak_hold_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_late_fragility_count,g_orb_pause_continue_too_late_count,g_orb_pause_continue_late_quality_too_weak_count,g_orb_pause_continue_no_clean_hold_count,g_orb_two_bar_confirm_both_sides_violated_count,g_orb_two_bar_confirm_weak_second_close_count,g_orb_two_bar_confirm_too_late_count,g_orb_two_bar_confirm_dirty_sequence_count,g_orb_retest_hold_both_sides_dirty_count,g_orb_retest_hold_no_acceptance_count,g_orb_retest_hold_reentered_too_deep_count,g_orb_retest_hold_too_late_count,g_orb_postbreak_reentered_or_too_deep_count,g_orb_postbreak_wicky_confirm_count,g_orb_postbreak_both_sides_violated_count,g_orb_postbreak_close_buffer_too_small_count,g_orb_postbreak_late_fragility_count,g_orb_postbreak_retest_no_acceptance_count,g_orb_postbreak_retest_unstable_continuation_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count));
    g_diag.Log("DEINIT",StringFormat("reason=%d",reason));
    g_diag.Shutdown();
    Comment("");
