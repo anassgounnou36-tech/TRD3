@@ -96,6 +96,7 @@ private:
       double body_ratio=(range>0.0?body/range:0.0);
       double close_loc=(range>0.0?(bars[0].close-bars[0].low)/range:0.5);
       bool close_location_ok=(long_dir?(close_loc>=0.65):(close_loc<=0.35));
+      bool clean_trend=(regime==REGIME_TREND_CONTINUATION && !both_sides_violated);
 
       if(subtype=="ORB_DIRECT_BREAK")
         {
@@ -138,17 +139,17 @@ private:
 
       if(subtype=="ORB_BREAK_PAUSE_CONTINUE")
         {
-         if(both_sides_violated)
-           {
-            reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
-            return(false);
-           }
-         int hard_cap=(regime==REGIME_MIXED?2:6);
-         if(bars_since_break_out>hard_cap)
-           {
-            reason_out="ORB_PAUSE_CONTINUE_TOO_LATE";
-            return(false);
-           }
+          if(both_sides_violated)
+            {
+             reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
+             return(false);
+            }
+          int hard_cap=(regime==REGIME_MIXED?2:6);
+          if(bars_since_break_out>hard_cap)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_TOO_LATE";
+             return(false);
+            }
          double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
          double reentry_tol_price=reentry_tol_pts*point;
          bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
@@ -166,12 +167,12 @@ private:
             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
-         confirm_buffer_pts_out=MathMax(0.12*atr_pts,1.25*spread_pts);
-         if(confirm_close_pts<confirm_buffer_pts_out)
-           {
-            reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
-            return(false);
-           }
+          confirm_buffer_pts_out=(clean_trend?MathMax(0.15*atr_pts,1.25*spread_pts):MathMax(0.12*atr_pts,1.25*spread_pts));
+          if(confirm_close_pts<confirm_buffer_pts_out)
+            {
+             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
+             return(false);
+            }
          if(body_ratio<0.35 || !close_location_ok)
            {
             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
@@ -188,59 +189,71 @@ private:
             if(!close_beyond && close_dist<=boundary_churn_band)
                boundary_churn_count++;
            }
-         if(boundary_churn_count>=2 && !path1)
-           {
-            reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
-            return(false);
-           }
+          if(boundary_churn_count>=2 && !path1)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_NO_CLEAN_HOLD";
+             return(false);
+            }
+          if(clean_trend && bars_since_break_out>=5 && boundary_churn_count>0)
+            {
+             reason_out="ORB_PAUSE_CONTINUE_DIRTY_SEQUENCE";
+             return(false);
+            }
 
-         postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
-         if(regime==REGIME_MIXED && bars_since_break_out==2)
-           {
-            double mixed_buffer_min=MathMax(0.20*atr_pts,1.6*spread_pts);
+          postbreak_quality_score_out=60.0+MathMin(20.0,confirm_close_pts)+MathMin(10.0,body_ratio*20.0)+MathMax(0.0,10.0-bars_since_break_out);
+          if(regime==REGIME_MIXED && bars_since_break_out==2)
+            {
+             double mixed_buffer_min=MathMax(0.20*atr_pts,1.6*spread_pts);
             if(postbreak_quality_score_out<92.0 || net_rr<1.45 || confirm_close_pts<mixed_buffer_min)
               {
                reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
                return(false);
               }
            }
-         if(regime==REGIME_TREND_CONTINUATION && bars_since_break_out>=5)
-           {
-            double trend_late_buffer_min=MathMax(0.16*atr_pts,1.35*spread_pts);
-            if(postbreak_quality_score_out<88.0 || net_rr<1.35 || confirm_close_pts<trend_late_buffer_min)
-              {
-               reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
-               return(false);
-              }
-           }
+          if(clean_trend && bars_since_break_out>=5)
+            {
+             double trend_late_buffer_min=MathMax(0.15*atr_pts,1.25*spread_pts);
+             if(postbreak_quality_score_out<86.0 || net_rr<1.30 || confirm_close_pts<trend_late_buffer_min)
+               {
+                reason_out="ORB_PAUSE_CONTINUE_LATE_QUALITY_TOO_WEAK";
+                return(false);
+               }
+            }
          return(true);
         }
 
       if(subtype=="ORB_TWO_BAR_CONFIRM")
         {
-         if(regime==REGIME_MIXED && both_sides_violated)
-            {
-             reason_out="ORB_TWO_BAR_CONFIRM_BOTH_SIDES_VIOLATED";
-             return(false);
-            }
-         if(bars_since_break_out>3)
+          if(regime==REGIME_MIXED && both_sides_violated)
+             {
+              reason_out="ORB_TWO_BAR_CONFIRM_BOTH_SIDES_VIOLATED";
+              return(false);
+             }
+          if(bars_since_break_out>3)
            {
             reason_out="ORB_TWO_BAR_CONFIRM_TOO_LATE";
             return(false);
            }
-         double first_range=(bars[1].high-bars[1].low);
-         double first_body=MathAbs(bars[1].close-bars[1].open);
-         double first_body_ratio=(first_range>0.0?first_body/first_range:0.0);
-         double second_range=(bars[0].high-bars[0].low);
-         double second_body=MathAbs(bars[0].close-bars[0].open);
-         double second_body_ratio=(second_range>0.0?second_body/second_range:0.0);
-         double second_close_clear_min=MathMax(0.14*atr_pts,1.20*spread_pts);
-         confirm_buffer_pts_out=second_close_clear_min;
-         if(first_body_ratio<0.30 || second_body_ratio<0.30 || confirm_close_pts<second_close_clear_min)
-           {
-            reason_out="ORB_TWO_BAR_CONFIRM_WEAK_SECOND_CLOSE";
-            return(false);
-           }
+          double first_range=(bars[1].high-bars[1].low);
+          double first_body=MathAbs(bars[1].close-bars[1].open);
+          double first_body_ratio=(first_range>0.0?first_body/first_range:0.0);
+          double second_range=(bars[0].high-bars[0].low);
+          double second_body=MathAbs(bars[0].close-bars[0].open);
+          double second_body_ratio=(second_range>0.0?second_body/second_range:0.0);
+          bool first_directional=(long_dir?(bars[1].close>bars[1].open):(bars[1].close<bars[1].open));
+          bool second_directional=(long_dir?(bars[0].close>bars[0].open):(bars[0].close<bars[0].open));
+          double second_close_clear_min=(clean_trend?MathMax(0.12*atr_pts,1.10*spread_pts):MathMax(0.14*atr_pts,1.20*spread_pts));
+          confirm_buffer_pts_out=second_close_clear_min;
+          bool weak_confirm=false;
+          if(clean_trend)
+             weak_confirm=(!first_directional || !second_directional || second_body_ratio<0.28 || confirm_close_pts<second_close_clear_min);
+          else
+             weak_confirm=(first_body_ratio<0.30 || second_body_ratio<0.30 || confirm_close_pts<second_close_clear_min);
+          if(weak_confirm)
+            {
+             reason_out="ORB_TWO_BAR_CONFIRM_WEAK_SECOND_CLOSE";
+             return(false);
+            }
          double reentry_tol_pts=MathMax(0.08*atr_pts,1.0*spread_pts);
           double reentry_tol_price=reentry_tol_pts*point;
          double churn_band=MathMax(0.06*atr_pts,0.8*spread_pts)*point;
@@ -268,16 +281,11 @@ private:
 
       if(subtype=="ORB_BREAK_RETEST_HOLD")
         {
-         bool exceptional_clean_trend=(regime==REGIME_TREND_CONTINUATION &&
-                                       bars_since_break_out<=2 &&
-                                       net_rr>=1.45 &&
-                                       body_ratio>=0.55 &&
-                                       close_location_ok);
-         if(both_sides_violated && !exceptional_clean_trend)
-           {
-            reason_out="ORB_RETEST_HOLD_BOTH_SIDES_DIRTY";
-            return(false);
-           }
+          if(both_sides_violated)
+            {
+             reason_out="ORB_RETEST_HOLD_BOTH_SIDES_DIRTY";
+             return(false);
+            }
          if(bars_since_break_out>5)
            {
             reason_out="ORB_RETEST_HOLD_TOO_LATE";
@@ -347,12 +355,12 @@ private:
             return(false);
            }
          double acceptance_clear_pts=(long_dir?(bars[first_accept_idx].close-edge):(edge-bars[first_accept_idx].close))/point;
-         double acceptance_clear_min=MathMax(0.12*atr_pts,1.10*spread_pts);
-         if(acceptance_clear_pts<acceptance_clear_min)
-           {
-            reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
-            return(false);
-           }
+          double acceptance_clear_min=(clean_trend?MathMax(0.10*atr_pts,1.05*spread_pts):MathMax(0.12*atr_pts,1.10*spread_pts));
+          if(acceptance_clear_pts<acceptance_clear_min)
+            {
+             reason_out="ORB_RETEST_HOLD_NO_ACCEPTANCE";
+             return(false);
+            }
 
          confirm_buffer_pts_out=MathMax(0.14*atr_pts,1.50*spread_pts);
          if(confirm_close_pts<confirm_buffer_pts_out)
