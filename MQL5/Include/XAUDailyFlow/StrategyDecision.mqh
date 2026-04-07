@@ -37,6 +37,30 @@ private:
       mr.subtype="MR_DISABLED";
       mr.reason_invalid="mr_disabled_orb_only_mode";
      }
+   bool IsRealORBSubtype(const string subtype) const
+     {
+      if(subtype=="")
+         return(false);
+      if(subtype=="NONE" || subtype=="NO_SUBTYPE")
+         return(false);
+      return(true);
+     }
+   bool IsRealRejectReason(const string reason) const
+     {
+      if(reason=="")
+         return(false);
+      if(reason=="(null)")
+         return(false);
+      return(true);
+     }
+   bool HasRealORBPostBreakReject(const XDFDecision &decision,const XDFSignal &signal) const
+     {
+      bool real_subtype=IsRealORBSubtype(signal.subtype);
+      bool validator_entered=decision.orb_postbreak_validator_entered;
+      bool rejected=decision.orb_rejected_by_postbreak;
+      bool real_reason=IsRealRejectReason(decision.last_orb_reject_reason);
+      return(decision.selected_family==SETUP_ORB_CONTINUATION && real_subtype && validator_entered && rejected && real_reason);
+     }
    bool HasGenuineReclaim(const XDFSignal &mr) const
      {
       return(mr.reclaim_window_quality>=12 &&
@@ -195,6 +219,13 @@ public:
       out_decision.mr_override_reason="";
       out_decision.orb_block_reason="";
       out_decision.orb_override_reason="";
+      out_decision.last_orb_reject_subtype="";
+      out_decision.last_orb_reject_reason="";
+      out_decision.selected_reject_reason="";
+      out_decision.selected_signal.postbreak_reject_reason="";
+      out_decision.selected_signal.postbreak_quality_pass=true;
+      out_decision.orb_rejected_by_postbreak=false;
+      out_decision.orb_postbreak_validator_entered=false;
       bool both_sides=(ctx.session.touched_above && ctx.session.touched_below);
       out_decision.regime=m_regime.Detect(ctx.or_data,ctx.atr_m5,ctx.vwap,ctx.mid_price,both_sides,ctx.m15,out_decision.regime_reason);
 
@@ -238,6 +269,17 @@ public:
       EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,ctx.enable_pause_continue,ctx.enable_retest_hold,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
+      out_decision.orb_postbreak_validator_entered=(IsRealORBSubtype(out_decision.orb_signal.subtype) &&
+                                                    (out_decision.orb_signal.postbreak_quality_score>0.0 ||
+                                                     out_decision.orb_signal.confirm_buffer_pts>0.0 ||
+                                                     out_decision.orb_signal.bars_since_initial_break>0 ||
+                                                     out_decision.orb_signal.postbreak_reject_reason!="" ||
+                                                     out_decision.orb_signal.postbreak_quality_pass));
+      out_decision.last_orb_reject_subtype=(IsRealORBSubtype(out_decision.orb_signal.subtype)?out_decision.orb_signal.subtype:"");
+      out_decision.last_orb_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+      out_decision.orb_rejected_by_postbreak=(out_decision.orb_postbreak_validator_entered &&
+                                              IsRealRejectReason(out_decision.last_orb_reject_reason) &&
+                                              !out_decision.orb_signal.postbreak_quality_pass);
 
       if(out_decision.orb_signal.valid)
          out_decision.orb_score=EvaluateScore(out_decision.orb_signal,ctx.or_data,ctx.atr_m5,ctx.spread_points,vwap_dist_points,out_decision.regime,ctx.m15);
@@ -275,26 +317,32 @@ public:
 
          if(!out_decision.eligible_orb)
            {
-            bool orb_postbreak_failed=(out_decision.orb_signal.postbreak_reject_reason!="" &&
-                                       !out_decision.orb_signal.postbreak_quality_pass);
+            out_decision.selected_family=SETUP_NONE;
+            out_decision.selected_signal.family=SETUP_NONE;
+            out_decision.selected_signal.subtype="NO_SUBTYPE";
+            out_decision.orb_subtype=(IsRealORBSubtype(out_decision.orb_subtype)?out_decision.orb_subtype:"NO_SUBTYPE");
+            bool orb_postbreak_failed=(out_decision.orb_postbreak_validator_entered &&
+                                       out_decision.orb_rejected_by_postbreak &&
+                                       IsRealORBSubtype(out_decision.orb_signal.subtype) &&
+                                       IsRealRejectReason(out_decision.last_orb_reject_reason));
             if(orb_postbreak_failed)
               {
-               out_decision.selected_family=SETUP_ORB_CONTINUATION;
-               out_decision.selected_signal=out_decision.orb_signal;
-               out_decision.selected_score=out_decision.orb_score;
-               out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
-               out_decision.blocker.message=out_decision.orb_signal.postbreak_reject_reason;
-               out_decision.selection_reason="ORB_POSTBREAK_REJECT";
-               out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
-               return(false);
+                out_decision.selected_family=SETUP_ORB_CONTINUATION;
+                out_decision.selected_signal=out_decision.orb_signal;
+                out_decision.selected_score=out_decision.orb_score;
+                out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
+                out_decision.blocker.message=out_decision.last_orb_reject_reason;
+                out_decision.selection_reason="ORB_POSTBREAK_REJECT";
+                out_decision.selected_reject_reason=out_decision.last_orb_reject_reason;
+                return(false);
               }
             if(out_decision.orb_signal.valid && !orb_payoff_ok)
               {
                out_decision.selected_family=SETUP_ORB_CONTINUATION;
-               out_decision.stop_dist_points=orb_stop_pts;
-               out_decision.target_dist_points=orb_target_pts;
-               out_decision.spread_points=orb_spread_pts;
-               out_decision.expected_slip_points=orb_slip_pts;
+                out_decision.stop_dist_points=orb_stop_pts;
+                out_decision.target_dist_points=orb_target_pts;
+                out_decision.spread_points=orb_spread_pts;
+                out_decision.expected_slip_points=orb_slip_pts;
                out_decision.blocker.code=BLOCKER_PAYOFF;
                out_decision.blocker.message=StringFormat("payoff_gate orb_ok=%s orb=%s mr_ok=%s mr=%s","N",orb_payoff_detail,"N","mr_disabled_orb_only_mode");
                out_decision.selected_reject_reason="payoff";
@@ -302,7 +350,10 @@ public:
               }
             out_decision.blocker.code=BLOCKER_NO_SETUP;
             out_decision.blocker.message=StringFormat("no setup orb=%s(%s) mr=N(mr_disabled_orb_only_mode)",(out_decision.orb_signal.valid?"Y":"N"),out_decision.orb_signal.reason_invalid);
-            out_decision.selected_reject_reason="no_setup";
+            if(out_decision.orb_signal.reason_invalid=="no_orb_subtype_match")
+               out_decision.selected_reject_reason="no_orb_subtype_match";
+            else
+               out_decision.selected_reject_reason="no_valid_orb_candidate";
             return(false);
            }
 
@@ -312,16 +363,11 @@ public:
          out_decision.selection_reason="ORB_ONLY_VALID";
          out_decision.selected_reject_reason="single_family_eligible";
 
-         if(!out_decision.selected_signal.postbreak_quality_pass || out_decision.selected_signal.postbreak_reject_reason!="")
+         if(HasRealORBPostBreakReject(out_decision,out_decision.selected_signal))
            {
-            string postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
-            if(postbreak_reason=="")
-               postbreak_reason=out_decision.selected_signal.reason_invalid;
-            if(postbreak_reason=="")
-               postbreak_reason="ORB_POSTBREAK_QUALITY_FAILED";
             out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
-            out_decision.blocker.message=postbreak_reason;
-            out_decision.selected_reject_reason=postbreak_reason;
+            out_decision.blocker.message=out_decision.last_orb_reject_reason;
+            out_decision.selected_reject_reason=out_decision.last_orb_reject_reason;
             return(false);
            }
 
@@ -509,17 +555,22 @@ public:
 
       if(!out_decision.selected_signal.valid)
         {
-         bool orb_postbreak_failed=(out_decision.orb_signal.postbreak_reject_reason!="" &&
-                                    !out_decision.orb_signal.postbreak_quality_pass);
+         out_decision.selected_family=SETUP_NONE;
+         out_decision.selected_signal.family=SETUP_NONE;
+         out_decision.selected_signal.subtype="NO_SUBTYPE";
+         bool orb_postbreak_failed=(out_decision.orb_postbreak_validator_entered &&
+                                    out_decision.orb_rejected_by_postbreak &&
+                                    IsRealORBSubtype(out_decision.orb_signal.subtype) &&
+                                    IsRealRejectReason(out_decision.last_orb_reject_reason));
          if(orb_postbreak_failed && !out_decision.eligible_mr)
            {
             out_decision.selected_family=SETUP_ORB_CONTINUATION;
             out_decision.selected_signal=out_decision.orb_signal;
             out_decision.selected_score=out_decision.orb_score;
             out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
-            out_decision.blocker.message=out_decision.orb_signal.postbreak_reject_reason;
+            out_decision.blocker.message=out_decision.last_orb_reject_reason;
             out_decision.selection_reason="ORB_POSTBREAK_REJECT";
-            out_decision.selected_reject_reason=out_decision.orb_signal.postbreak_reject_reason;
+            out_decision.selected_reject_reason=out_decision.last_orb_reject_reason;
             return(false);
            }
          bool any_valid_signal=(out_decision.orb_signal.valid || out_decision.mr_signal.valid);
@@ -556,22 +607,20 @@ public:
            {
             out_decision.blocker.code=BLOCKER_NO_SETUP;
             out_decision.blocker.message=StringFormat("no setup orb=%s(%s) mr=%s(%s)",(out_decision.orb_signal.valid?"Y":"N"),out_decision.orb_signal.reason_invalid,(out_decision.mr_signal.valid?"Y":"N"),out_decision.mr_signal.reason_invalid);
-            out_decision.selected_reject_reason="no_setup";
+            if(out_decision.orb_signal.reason_invalid=="no_orb_subtype_match")
+               out_decision.selected_reject_reason="no_orb_subtype_match";
+            else
+               out_decision.selected_reject_reason="no_valid_orb_candidate";
            }
          return(false);
         }
 
       if(out_decision.selected_family==SETUP_ORB_CONTINUATION &&
-         (!out_decision.selected_signal.postbreak_quality_pass || out_decision.selected_signal.postbreak_reject_reason!=""))
+         HasRealORBPostBreakReject(out_decision,out_decision.selected_signal))
         {
-         string postbreak_reason=out_decision.selected_signal.postbreak_reject_reason;
-         if(postbreak_reason=="")
-            postbreak_reason=out_decision.selected_signal.reason_invalid;
-         if(postbreak_reason=="")
-            postbreak_reason="ORB_POSTBREAK_QUALITY_FAILED";
          out_decision.blocker.code=BLOCKER_POSTBREAK_QUALITY;
-         out_decision.blocker.message=postbreak_reason;
-         out_decision.selected_reject_reason=postbreak_reason;
+         out_decision.blocker.message=out_decision.last_orb_reject_reason;
+         out_decision.selected_reject_reason=out_decision.last_orb_reject_reason;
          return(false);
         }
 

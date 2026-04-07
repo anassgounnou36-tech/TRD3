@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v2.1.1-orb-only-early-gate-and-subtype-isolation-1"
+#define XDF_BUILD_TAG "v2.1.1a-orb-only-postbreak-state-reset-1"
 
 input string InpSymbol = "";
 
@@ -297,6 +297,11 @@ bool XDF_IsGeometryInvalidReason(const string reason)
           StringFind(reason,"stop_cap_fail")>=0 ||
           StringFind(reason,"rr_fail")>=0 ||
           StringFind(reason,"target_le_stop")>=0);
+  }
+
+bool XDF_IsRealSubtypeTag(const string subtype)
+  {
+   return(subtype!="" && subtype!="NONE" && subtype!="NO_SUBTYPE");
   }
 
 void XDF_TrackORBDirectBreakVeto(const string reason)
@@ -757,19 +762,32 @@ void OnTick()
                                                   XDF_BUILD_TAG,(int)decision.selected_family,decision.selected_signal.subtype,rr,
                                                  decision.stop_dist_points,decision.target_dist_points,decision.spread_points,decision.expected_slip_points,decision.selected_signal.net_rr));
           }
-        if(decision.blocker.code==BLOCKER_POSTBREAK_QUALITY)
+        bool real_orb_postbreak_reject=(decision.selected_family==SETUP_ORB_CONTINUATION &&
+                                        decision.orb_postbreak_validator_entered &&
+                                        decision.orb_rejected_by_postbreak &&
+                                        XDF_IsRealSubtypeTag(decision.selected_signal.subtype) &&
+                                        decision.selected_reject_reason!="" &&
+                                        decision.selected_reject_reason!="(null)");
+        if(decision.blocker.code==BLOCKER_POSTBREAK_QUALITY && real_orb_postbreak_reject)
           {
-           g_rejected_by_postbreak_quality_count++;
-           g_diag.Log("POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
-                                                      XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
-                                                      decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
+            g_rejected_by_postbreak_quality_count++;
+            g_diag.Log("POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                       XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.selected_signal.subtype,decision.selected_reject_reason,
+                                                       decision.selected_signal.confirm_buffer_pts,decision.selected_signal.bars_since_initial_break));
           }
-        if(decision.orb_signal.postbreak_reject_reason!="")
+        if(decision.orb_postbreak_validator_entered &&
+           decision.orb_rejected_by_postbreak &&
+           XDF_IsRealSubtypeTag(decision.orb_signal.subtype) &&
+           decision.orb_signal.postbreak_reject_reason!="" &&
+           decision.orb_signal.postbreak_reject_reason!="(null)")
           {
-           g_diag.Log("ORB_POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reject_reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
-                                                          XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.orb_signal.subtype,decision.orb_signal.postbreak_reject_reason,
-                                                          decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break));
+            g_diag.Log("ORB_POSTBREAK_REJECT",StringFormat("build=%s regime=%s subtype=%s reject_reason=%s confirm_buffer_pts=%.2f bars_since_initial_break=%d",
+                                                           XDF_BUILD_TAG,XDF_RegimeToString((int)decision.regime),decision.orb_signal.subtype,decision.orb_signal.postbreak_reject_reason,
+                                                           decision.orb_signal.confirm_buffer_pts,decision.orb_signal.bars_since_initial_break));
           }
+        if(decision.blocker.code==BLOCKER_NO_SETUP &&
+           (decision.selected_reject_reason=="no_orb_subtype_match" || decision.selected_reject_reason=="no_valid_orb_candidate"))
+           g_diag.Log("ORB_NO_SUBTYPE",StringFormat("reason=%s subtype=%s orb_reason_invalid=%s",decision.selected_reject_reason,decision.selected_signal.subtype,decision.orb_signal.reason_invalid));
         if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
           {
             g_diag.Log("GEOMETRY_REJECT",StringFormat("build=%s family=%d subtype=%s reason_invalid=%s stopPts=%.1f targetPts=%.1f spreadPts=%.1f slipPts=%.1f netRR=%.2f",
