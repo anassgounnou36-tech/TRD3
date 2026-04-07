@@ -195,6 +195,8 @@ struct XDFDecisionContext
    double            entry_long;
    double            entry_short;
    double            expected_slippage_points;
+   bool              enable_pause_continue;
+   bool              enable_retest_hold;
    bool              live_mode;
   };
 

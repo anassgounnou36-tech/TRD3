@@ -136,8 +136,13 @@ private:
          return(true);
         }
 
-      if(subtype=="ORB_BREAK_PAUSE_CONTINUE" && regime==REGIME_MIXED)
+      if(subtype=="ORB_BREAK_PAUSE_CONTINUE")
         {
+         if(regime!=REGIME_TREND_CONTINUATION)
+           {
+            reason_out="ORB_PAUSE_CONTINUE_REQUIRES_CLEAN_TREND";
+            return(false);
+           }
          if(both_sides_violated)
            {
             reason_out="ORB_POSTBREAK_BOTH_SIDES_VIOLATED";
@@ -145,11 +150,17 @@ private:
            }
          if(bars_since_break_out>4)
            {
-            reason_out="ORB_POSTBREAK_LATE_FRAGILITY";
+            reason_out="pause_continue_too_late_filtered";
             return(false);
            }
          double reentry_tol_pts=MathMax(0.10*atr_pts,1.0*spread_pts);
          double reentry_tol_price=reentry_tol_pts*point;
+         bool boundary_churn=(long_dir?(bars[1].close<edge && bars[2].close>edge):(bars[1].close>edge && bars[2].close<edge));
+         if(boundary_churn)
+           {
+            reason_out="ORB_POSTBREAK_DIRTY_CHURN";
+            return(false);
+           }
          bool path1=(XDF_CloseBeyondEdge(bars[1],long_dir,edge) && XDF_CloseBeyondEdge(bars[0],long_dir,edge));
          bool path2_break=XDF_CloseBeyondEdge(bars[2],long_dir,edge);
          bool path2_retest_ok=(long_dir?(bars[1].low>=edge-reentry_tol_price):(bars[1].high<=edge+reentry_tol_price));
@@ -165,13 +176,13 @@ private:
             reason_out="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP";
             return(false);
            }
-         confirm_buffer_pts_out=MathMax(0.12*atr_pts,1.25*spread_pts);
+         confirm_buffer_pts_out=MathMax(0.14*atr_pts,1.15*spread_pts);
          if(confirm_close_pts<confirm_buffer_pts_out)
            {
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
             return(false);
            }
-         if(body_ratio<0.35 || !close_location_ok)
+         if(body_ratio<0.40 || !close_location_ok)
            {
             reason_out="ORB_POSTBREAK_WICKY_CONFIRM";
             return(false);
@@ -251,7 +262,7 @@ private:
             return(false);
            }
 
-         confirm_buffer_pts_out=MathMax(0.14*atr_pts,1.50*spread_pts);
+         confirm_buffer_pts_out=MathMax(0.10*atr_pts,1.00*spread_pts);
          if(confirm_close_pts<confirm_buffer_pts_out)
            {
             reason_out="ORB_POSTBREAK_CLOSE_BUFFER_TOO_SMALL";
@@ -483,7 +494,9 @@ public:
                          const double spread_points,
                          const double expected_slippage_points,
                          const XDFRegime regime,
-                         const bool both_sides_violated)
+                         const bool both_sides_violated,
+                         const bool enable_pause_continue,
+                         const bool enable_retest_hold)
      {
       XDFSignal best;
       XDFSignal best_rejected_postbreak;
@@ -575,7 +588,7 @@ public:
             }
         }
 
-      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && ema_long_ok && (b2.close>or_data.high || b1.close>or_data.high) &&
+      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && enable_retest_hold && ema_long_ok && (b2.close>or_data.high || b1.close>or_data.high) &&
          ((b1.low>=or_data.high-atr*0.24 && b0.close>or_data.high) || (b0.low>=or_data.high-atr*0.24 && b0.close>or_data.high)))
         {
          double structure_low=MathMin(MathMin(b0.low,b1.low),or_data.high-atr*0.10);
@@ -598,13 +611,14 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
-               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
+               if(postbreak_reason!="pause_continue_too_late_filtered")
+                  TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
             best=candidate;
         }
-      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && ema_short_ok && (b2.close<or_data.low || b1.close<or_data.low) &&
+      if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && enable_retest_hold && ema_short_ok && (b2.close<or_data.low || b1.close<or_data.low) &&
          ((b1.high<=or_data.low+atr*0.24 && b0.close<or_data.low) || (b0.high<=or_data.low+atr*0.24 && b0.close<or_data.low)))
         {
          double structure_high=MathMax(MathMax(b0.high,b1.high),or_data.low+atr*0.10);
@@ -627,7 +641,8 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
-               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
+               if(postbreak_reason!="pause_continue_too_late_filtered")
+                  TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -691,7 +706,7 @@ public:
             best=candidate;
         }
 
-      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && ema_long_ok && b2.close>or_data.high && b1.low>or_data.high-atr*0.20 && b1.close>or_data.high-atr*0.08 && b0.close>or_data.high)
+      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && enable_pause_continue && ema_long_ok && b2.close>or_data.high && b1.low>or_data.high-atr*0.20 && b1.close>or_data.high-atr*0.08 && b0.close>or_data.high)
         {
          double structure_low=MathMin(MathMin(b0.low,b1.low),b2.low);
          double stop=XDF_LongORBStructuralStop(structure_low,atr,or_data,entry_long,min_stop_distance);
@@ -713,13 +728,14 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
-               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
+               if(postbreak_reason!="pause_continue_too_late_filtered")
+                  TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
             best=candidate;
         }
-      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && ema_short_ok && b2.close<or_data.low && b1.high<or_data.low+atr*0.20 && b1.close<or_data.low+atr*0.08 && b0.close<or_data.low)
+      if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && enable_pause_continue && ema_short_ok && b2.close<or_data.low && b1.high<or_data.low+atr*0.20 && b1.close<or_data.low+atr*0.08 && b0.close<or_data.low)
         {
          double structure_high=MathMax(MathMax(b0.high,b1.high),b2.high);
          double stop=XDF_ShortORBStructuralStop(structure_high,atr,or_data,entry_short,min_stop_distance);
@@ -741,7 +757,8 @@ public:
               {
                candidate.postbreak_reject_reason=postbreak_reason;
                MarkInvalid(candidate,postbreak_reason);
-               TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
+               if(postbreak_reason!="pause_continue_too_late_filtered")
+                  TrackRejectedPostBreakCandidate(candidate,best_rejected_postbreak,has_rejected_postbreak);
               }
            }
          if(IsBetter(candidate,best))
@@ -757,7 +774,7 @@ public:
 
     XDFSignal Evaluate(const string symbol,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance)
       {
-       return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,REGIME_MIXED,false));
+       return(EvaluateAt(symbol,1,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,SymbolInfoDouble(symbol,SYMBOL_ASK),SymbolInfoDouble(symbol,SYMBOL_BID),SymbolInfoDouble(symbol,SYMBOL_POINT),0.0,0.0,REGIME_MIXED,false,true,true));
       }
   };
 

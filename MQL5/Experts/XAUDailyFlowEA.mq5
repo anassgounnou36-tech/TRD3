@@ -22,7 +22,7 @@
 #include <XAUDailyFlow/ChartPanel.mqh>
 #include <Trade/Trade.mqh>
 
-#define XDF_BUILD_TAG "v2.1.0-orb-only-clean-trend-core-1"
+#define XDF_BUILD_TAG "v2.1.1-orb-only-early-gate-and-subtype-isolation-1"
 
 input string InpSymbol = "";
 
@@ -34,7 +34,9 @@ input int InpLondonTradeMinutes = 120;
 input int InpNYStartHour = 13;
 input int InpNYStartMinute = 30;
 input int InpNYORMinutes = 10;
-input int InpNYTradeMinutes = 120;
+input int InpNYTradeMinutes = 0;
+input bool InpEnablePauseContinue = true;
+input bool InpEnableRetestHold = true;
 
 input double InpRiskPct = 0.35;
 input double InpMaxDailyLossPct = 1.8;
@@ -102,6 +104,12 @@ int g_accepted_orb_count=0;
 int g_accepted_mr_count=0;
 int g_accepted_orb_pause_continue_count=0;
 int g_accepted_orb_retest_hold_count=0;
+int g_rejected_orb_pause_continue_count=0;
+int g_rejected_orb_retest_hold_count=0;
+int g_pause_continue_too_late_filtered_count=0;
+int g_retest_hold_no_acceptance_count=0;
+int g_retest_hold_reentered_too_deep_count=0;
+int g_retest_hold_both_sides_dirty_count=0;
 double g_accepted_orb_net_rr_sum=0.0;
 double g_accepted_mr_net_rr_sum=0.0;
 int g_geometry_invalidated_candidates=0;
@@ -142,9 +150,9 @@ string XDF_EnabledORBSubtypes()
       out=(out==""?"ORB_DIRECT_BREAK":out+",ORB_DIRECT_BREAK");
    if(XDF_ENABLE_ORB_TWO_BAR_CONFIRM)
       out=(out==""?"ORB_TWO_BAR_CONFIRM":out+",ORB_TWO_BAR_CONFIRM");
-   if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE)
+   if(XDF_ENABLE_ORB_BREAK_PAUSE_CONTINUE && InpEnablePauseContinue)
       out=(out==""?"ORB_BREAK_PAUSE_CONTINUE":out+",ORB_BREAK_PAUSE_CONTINUE");
-   if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD)
+   if(XDF_ENABLE_ORB_BREAK_RETEST_HOLD && InpEnableRetestHold)
       out=(out==""?"ORB_BREAK_RETEST_HOLD":out+",ORB_BREAK_RETEST_HOLD");
    if(out=="")
       out="NONE";
@@ -324,6 +332,26 @@ void XDF_TrackORBDirectBreakVeto(const string reason)
     else
        return;
    g_diag.Log("ORB_DIRECT_BREAK_VETO",reason);
+  }
+
+void XDF_TrackORBSubtypeReject(const string subtype,const string reason)
+  {
+   if(subtype=="ORB_BREAK_PAUSE_CONTINUE")
+     {
+      g_rejected_orb_pause_continue_count++;
+      if(reason=="pause_continue_too_late_filtered")
+         g_pause_continue_too_late_filtered_count++;
+     }
+   else if(subtype=="ORB_BREAK_RETEST_HOLD")
+     {
+      g_rejected_orb_retest_hold_count++;
+      if(reason=="ORB_POSTBREAK_RETEST_NO_ACCEPTANCE")
+         g_retest_hold_no_acceptance_count++;
+      else if(reason=="ORB_POSTBREAK_PAUSE_REENTERED_OR_TOO_DEEP")
+         g_retest_hold_reentered_too_deep_count++;
+      else if(reason=="ORB_POSTBREAK_BOTH_SIDES_VIOLATED")
+         g_retest_hold_both_sides_dirty_count++;
+     }
   }
 
 void XDF_LogMgmtGuard(const string action,const string reason,const int bars_since_entry,const double mfe_r,const XDFSetupFamily family,const string subtype,const datetime guard_bar)
@@ -570,8 +598,8 @@ void OnDeinit(const int reason)
    int accepted_mr=(XDF_ENABLE_MR?g_accepted_mr_count:0);
    double avg_mr_net_rr=(accepted_mr>0?g_accepted_mr_net_rr_sum/accepted_mr:0.0);
    string enabled_orb_subtypes=XDF_EnabledORBSubtypes();
-   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s orb_only_mode=%s mr_enabled=%s enabled_orb_subtypes=%s accepted_orb=%d accepted_mr=%d accepted_orb_pause_continue=%d accepted_orb_retest_hold=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d rejected_by_postbreak_quality=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_in_mixed=%d orb_pause_continue_blocked_mixed_weak_hold=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_no_close_confirm=%d orb_direct_break_late_entry=%d orb_postbreak_reentered_or_too_deep=%d orb_postbreak_wicky_confirm=%d orb_postbreak_both_sides_violated=%d orb_postbreak_close_buffer_too_small=%d orb_postbreak_late_fragility=%d orb_postbreak_retest_no_acceptance=%d orb_postbreak_retest_unstable_continuation=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d",
-                                            XDF_BUILD_TAG,(XDF_ORB_ONLY_TREND_CONTINUATION?"Y":"N"),(XDF_ENABLE_MR?"Y":"N"),enabled_orb_subtypes,g_accepted_orb_count,accepted_mr,g_accepted_orb_pause_continue_count,g_accepted_orb_retest_hold_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,g_rejected_by_postbreak_quality_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_in_mixed_count,g_orb_pause_continue_blocked_mixed_weak_hold_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_late_fragility_count,g_orb_postbreak_reentered_or_too_deep_count,g_orb_postbreak_wicky_confirm_count,g_orb_postbreak_both_sides_violated_count,g_orb_postbreak_close_buffer_too_small_count,g_orb_postbreak_late_fragility_count,g_orb_postbreak_retest_no_acceptance_count,g_orb_postbreak_retest_unstable_continuation_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count));
+   g_diag.Log("DEINIT_SUMMARY",StringFormat("build=%s orb_only_mode=%s mr_enabled=%s enabled_orb_subtypes=%s accepted_orb=%d accepted_mr=%d accepted_orb_pause_continue=%d accepted_orb_retest_hold=%d rejected_orb_pause_continue=%d rejected_orb_retest_hold=%d pause_continue_too_late_filtered=%d retest_hold_no_acceptance=%d retest_hold_reentered_too_deep=%d retest_hold_both_sides_dirty=%d rejected_by_regime=%d rejected_by_geometry=%d rejected_by_presend_payoff=%d rejected_by_postbreak_quality=%d avg_accepted_orb_netRR=%.2f avg_accepted_mr_netRR=%.2f orb_blocked_in_mean_reversion=%d mr_blocked_in_trend_continuation=%d orb_direct_break_blocked_in_mixed=%d orb_pause_continue_blocked_mixed_weak_hold=%d orb_direct_break_blocked_both_sides=%d orb_direct_break_no_close_confirm=%d orb_direct_break_late_entry=%d orb_postbreak_reentered_or_too_deep=%d orb_postbreak_wicky_confirm=%d orb_postbreak_both_sides_violated=%d orb_postbreak_close_buffer_too_small=%d orb_postbreak_late_fragility=%d orb_postbreak_retest_no_acceptance=%d orb_postbreak_retest_unstable_continuation=%d orb_direct_break_blocked_low_buffer=%d orb_direct_break_blocked_wide_stop=%d",
+                                            XDF_BUILD_TAG,(XDF_ORB_ONLY_TREND_CONTINUATION?"Y":"N"),(XDF_ENABLE_MR?"Y":"N"),enabled_orb_subtypes,g_accepted_orb_count,accepted_mr,g_accepted_orb_pause_continue_count,g_accepted_orb_retest_hold_count,g_rejected_orb_pause_continue_count,g_rejected_orb_retest_hold_count,g_pause_continue_too_late_filtered_count,g_retest_hold_no_acceptance_count,g_retest_hold_reentered_too_deep_count,g_retest_hold_both_sides_dirty_count,g_rejected_by_regime_count,g_rejected_by_geometry_count,g_rejected_by_presend_payoff_count,g_rejected_by_postbreak_quality_count,avg_orb_net_rr,avg_mr_net_rr,g_orb_blocked_in_mr_count,g_mr_blocked_in_trend_count,g_orb_direct_break_blocked_in_mixed_count,g_orb_pause_continue_blocked_mixed_weak_hold_count,g_orb_direct_break_blocked_both_sides_count,g_orb_direct_break_blocked_no_close_confirm_count,g_orb_direct_break_blocked_late_fragility_count,g_orb_postbreak_reentered_or_too_deep_count,g_orb_postbreak_wicky_confirm_count,g_orb_postbreak_both_sides_violated_count,g_orb_postbreak_close_buffer_too_small_count,g_orb_postbreak_late_fragility_count,g_orb_postbreak_retest_no_acceptance_count,g_orb_postbreak_retest_unstable_continuation_count,g_orb_direct_break_blocked_low_buffer_count,g_orb_direct_break_blocked_wide_stop_count));
    g_diag.Log("DEINIT",StringFormat("reason=%d",reason));
    g_diag.Shutdown();
    Comment("");
@@ -633,7 +661,7 @@ void OnTick()
    XDFDecisionContext ctx;
    string ctx_diag;
     bool session_changed=(g_session_state.session_start!=g_last_session_start);
-     if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
+     if(!XDF_BuildDecisionContext(g_symbol,now,g_runtime_session,g_session_state,g_indicators,g_vwap,g_or_engine,g_specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,InpEnablePauseContinue,InpEnableRetestHold,true,g_last_session_start,g_last_m1_vwap_bar,ctx,g_or,ctx_diag))
       {
        g_last_blocker.code=BLOCKER_SESSION_CLOSED;
        g_last_blocker.message="OR unavailable";
@@ -688,6 +716,13 @@ void OnTick()
      bool decision_ok=g_decision.XDF_EvaluateDecision(g_filter,ctx,decision);
     XDF_TrackORBDirectBreakVeto(decision.orb_signal.reason_invalid);
     XDF_TrackORBDirectBreakVeto(decision.orb_signal.postbreak_reject_reason);
+    if(!decision_ok && decision.orb_subtype!="")
+      {
+       string subtype_reject_reason=(decision.orb_signal.postbreak_reject_reason!=""?decision.orb_signal.postbreak_reject_reason:decision.orb_signal.reason_invalid);
+       if(subtype_reject_reason=="")
+          subtype_reject_reason=decision.selected_reject_reason;
+       XDF_TrackORBSubtypeReject(decision.orb_subtype,subtype_reject_reason);
+      }
     if(XDF_IsGeometryInvalidReason(decision.orb_signal.reason_invalid))
        g_geometry_invalidated_candidates++;
     if(XDF_IsGeometryInvalidReason(decision.mr_signal.reason_invalid))
@@ -705,8 +740,8 @@ void OnTick()
                                      XDF_RegimeToString((int)decision.regime),decision.regime_reason,(g_session_state.touched_above && g_session_state.touched_below)?"Y":"N",m15_summary));
     if(!decision_ok)
        {
-        if(decision.selection_reason=="ORB_ONLY_SKIP" && decision.selected_reject_reason=="requires_trend_continuation")
-           g_diag.Log("ORB_ONLY_SKIP","reason=requires_trend_continuation");
+        if(decision.selection_reason=="ORB_ONLY_SKIP")
+           g_diag.Log("ORB_ONLY_SKIP",StringFormat("reason=%s",decision.selected_reject_reason));
         if(decision.orb_block_reason!="")
         {
            g_diag.Log("ORB_BLOCK",StringFormat("build=%s orb_block_reason=%s regime=%s subtype=%s",XDF_BUILD_TAG,decision.orb_block_reason,XDF_RegimeToString((int)decision.regime),decision.orb_subtype));

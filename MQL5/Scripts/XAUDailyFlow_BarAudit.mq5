@@ -111,7 +111,7 @@ void OnStart()
       XDFOpeningRange or_data;
       XDFDecisionContext ctx;
       string ctx_diag;
-      bool have_ctx=XDF_BuildDecisionContext(sym,ts,runtime_state,ss,ind,vwap,or_engine,specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,false,last_session_start,last_m1_vwap_bar,ctx,or_data,ctx_diag);
+      bool have_ctx=XDF_BuildDecisionContext(sym,ts,runtime_state,ss,ind,vwap,or_engine,specs,InpMaxSpreadPoints,InpMinATR,InpMaxVWAPDistancePoints,InpMinSetupScore,InpMixedModeScoreThreshold,InpConflictOverrideScoreThreshold,true,true,false,last_session_start,last_m1_vwap_bar,ctx,or_data,ctx_diag);
       if(have_ctx && runtime_state.or_log_signature!="" && runtime_state.or_log_signature!=last_or_log_signature)
         {
          int sep=StringFind(ctx_diag," | OR_VALIDATE ");

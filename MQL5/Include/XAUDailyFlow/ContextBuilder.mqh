@@ -49,6 +49,8 @@ bool XDF_BuildDecisionContext(const string symbol,
                               const int min_setup_score,
                               const int mixed_setup_score,
                               const int conflict_override_score,
+                              const bool enable_pause_continue,
+                              const bool enable_retest_hold,
                               const bool live_mode,
                               datetime &last_session_start,
                               datetime &last_m1_vwap_bar,
@@ -181,6 +183,8 @@ bool XDF_BuildDecisionContext(const string symbol,
       }
     // Realistic conservative slippage estimate: max(2.0 points, 15% of spread), capped at 8.0.
     out_ctx.expected_slippage_points=MathMin(MathMax(XDF_EXPECTED_SLIPPAGE_MIN_POINTS,out_ctx.spread_points*XDF_EXPECTED_SLIPPAGE_SPREAD_FACTOR),XDF_EXPECTED_SLIPPAGE_CAP_POINTS);
+    out_ctx.enable_pause_continue=enable_pause_continue;
+    out_ctx.enable_retest_hold=enable_retest_hold;
     out_ctx.live_mode=live_mode;
     return(true);
    }

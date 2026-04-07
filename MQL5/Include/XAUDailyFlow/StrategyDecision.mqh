@@ -164,9 +164,9 @@ private:
       return(a.subtype_quality>=b.subtype_quality);
      }
 public:
-   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const XDFRegime regime,const bool both_sides_violated,XDFSignal &orb,XDFSignal &mr)
+   void EvaluateSignals(const string symbol,const int shift,const XDFOpeningRange &or_data,double vwap,double atr,bool ema_long_ok,bool ema_short_ok,double min_stop_distance,double entry_long,double entry_short,const double point,const double spread_points,const double expected_slippage_points,const XDFRegime regime,const bool both_sides_violated,const bool enable_pause_continue,const bool enable_retest_hold,XDFSignal &orb,XDFSignal &mr)
         {
-         orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points,regime,both_sides_violated);
+         orb=m_orb.EvaluateAt(symbol,shift,or_data,vwap,atr,ema_long_ok,ema_short_ok,min_stop_distance,entry_long,entry_short,point,spread_points,expected_slippage_points,regime,both_sides_violated,enable_pause_continue,enable_retest_hold);
          if(XDF_ENABLE_MR)
             mr=m_mr.EvaluateAt(symbol,shift,or_data,vwap,atr,entry_long,entry_short,point,spread_points,expected_slippage_points,regime);
          else
@@ -202,11 +202,40 @@ public:
       double vwap_dist_points=ctx.vwap_distance_points;
       double recent_range_price=ctx.recent_range_price;
       double or_width_points=(ctx.point>0.0 ? ctx.or_data.width/ctx.point : 0.0);
+      bool orb_only_mode=(!XDF_ENABLE_MR);
+
+      if(orb_only_mode && !ctx.session.active)
+        {
+         DisableMRSignal(out_decision.mr_signal);
+         out_decision.mr_subtype=out_decision.mr_signal.subtype;
+         out_decision.mr_block_reason="mr_disabled_orb_only_mode";
+         out_decision.eligible_family=SETUP_NONE;
+         out_decision.selected_family=SETUP_NONE;
+         out_decision.selection_reason="ORB_ONLY_SKIP";
+         out_decision.selected_reject_reason="outside_trade_window";
+         out_decision.blocker.code=BLOCKER_NO_SETUP;
+         out_decision.blocker.message="orb_only_mode_outside_trade_window";
+         return(false);
+        }
+
+      if(orb_only_mode && XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION)
+        {
+         DisableMRSignal(out_decision.mr_signal);
+         out_decision.mr_subtype=out_decision.mr_signal.subtype;
+         out_decision.mr_block_reason="mr_disabled_orb_only_mode";
+         out_decision.eligible_family=SETUP_NONE;
+         out_decision.selected_family=SETUP_NONE;
+         out_decision.selection_reason="ORB_ONLY_SKIP";
+         out_decision.selected_reject_reason="requires_trend_continuation";
+         out_decision.blocker.code=BLOCKER_NO_SETUP;
+         out_decision.blocker.message="orb_only_mode_requires_trend_continuation";
+         return(false);
+        }
 
       long stops_level=0;
       SymbolInfoInteger(ctx.symbol,SYMBOL_TRADE_STOPS_LEVEL,stops_level);
       double min_stop_distance=MathMax(ctx.point*5.0,(double)stops_level*ctx.point);
-      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,out_decision.orb_signal,out_decision.mr_signal);
+      EvaluateSignals(ctx.symbol,ctx.evaluated_m5_shift,ctx.or_data,ctx.vwap,ctx.atr_m5,(ctx.m15.trend_alignment>=0),(ctx.m15.trend_alignment<=0),min_stop_distance,ctx.entry_long,ctx.entry_short,ctx.point,ctx.spread_points,ctx.expected_slippage_points,out_decision.regime,both_sides,ctx.enable_pause_continue,ctx.enable_retest_hold,out_decision.orb_signal,out_decision.mr_signal);
       out_decision.orb_subtype=out_decision.orb_signal.subtype;
       out_decision.mr_subtype=out_decision.mr_signal.subtype;
 
@@ -241,20 +270,6 @@ public:
          out_decision.mr_exceptional_allowed=false;
          out_decision.mr_block_reason="mr_disabled_orb_only_mode";
          out_decision.mr_override_reason="";
-
-         bool trend_continuation_required_but_missing=(XDF_ORB_ONLY_TREND_CONTINUATION && out_decision.regime!=REGIME_TREND_CONTINUATION);
-         if(trend_continuation_required_but_missing)
-           {
-            out_decision.eligible_family=SETUP_NONE;
-            out_decision.selected_family=SETUP_NONE;
-            out_decision.selected_signal.family=SETUP_NONE;
-            out_decision.selected_signal.subtype="NONE";
-            out_decision.selection_reason="ORB_ONLY_SKIP";
-            out_decision.selected_reject_reason="requires_trend_continuation";
-            out_decision.blocker.code=BLOCKER_NO_SETUP;
-            out_decision.blocker.message="orb_only_mode_requires_trend_continuation";
-            return(false);
-           }
 
          out_decision.eligible_family=(out_decision.eligible_orb?SETUP_ORB_CONTINUATION:SETUP_NONE);
 
